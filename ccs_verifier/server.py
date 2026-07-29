@@ -22,7 +22,7 @@ from ccs_verifier.protocol import (
 class VerifierServer:
     """
     Out-of-process verification server.
-    
+
     Lifecycle:
         server = VerifierServer(rules=[SSRFRule(), RCERule()])
         await server.start(port=50051)
@@ -62,7 +62,18 @@ class VerifierServer:
                 block_reason = result.reason
 
         now = time.time()
-        receipt = sign_receipt(command.trace_id, final_verdict, now, self._signing_key)
+        rule_summary = "|".join(
+            f"{r.rule_name}={r.verdict.value}" for r in rule_results
+        )
+        receipt = sign_receipt(
+            trace_id=command.trace_id,
+            verdict=final_verdict,
+            timestamp=now,
+            secret=self._signing_key,
+            tool=command.tool,
+            params_hash=command.params_hash(),
+            rule_summary=rule_summary,
+        )
 
         verification = VerificationResult(
             trace_id=command.trace_id,
@@ -71,6 +82,8 @@ class VerifierServer:
             rule_results=tuple(rule_results),
             receipt=receipt,
             verified_at=now,
+            tool=command.tool,
+            params_hash=command.params_hash(),
         )
 
         # Append to in-process audit log (separate from agent's log)
