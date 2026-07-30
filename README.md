@@ -75,7 +75,7 @@ print(f"Mode: {verifier.mode}")  # "out-of-process" or "in-process"
 
 | Transport | Latency | Use Case |
 |-----------|---------|----------|
-| Unix socket | P50 ≈ 83μs | Local deployment (recommended) |
+| Unix socket | P50 ≈ 110μs | Local deployment (recommended) |
 | TCP | P50 ≈ 200μs | Cross-machine, containerized |
 
 ## Performance
@@ -83,9 +83,9 @@ print(f"Mode: {verifier.mode}")  # "out-of-process" or "in-process"
 Benchmarked on Linux (asyncio Unix socket, 3 rules):
 
 ```
-1000 verifications in 0.11s
-Throughput: 9,178 req/s
-Latency — avg: 106μs, P50: 83μs, P95: 114μs, P99: 578μs
+1000 verifications in 0.12s
+Throughput: 8,308 req/s
+Latency — avg: 117μs, P50: 110μs, P95: 161μs, P99: 223μs
 ```
 
 ## Protocol
@@ -135,3 +135,20 @@ class PathTraversalRule:
 ## License
 
 MIT
+
+## Security Considerations
+
+**Threat model**: CCS Verifier protects against compromised agent processes issuing malicious commands. The out-of-process design ensures the verifier's rule evaluation and audit log cannot be subverted by agent-process memory corruption.
+
+**Key security properties**:
+- **Process isolation**: Verifier runs in a separate process with its own memory space. A compromised agent cannot tamper with rule evaluation or forge audit receipts.
+- **HMAC-signed receipts**: Every verdict is signed with HMAC-SHA256 using a key held only by the verifier process. Receipts are tamper-evident.
+- **Unix socket permissions**: Default socket file is created with `0o600` (owner-only access), preventing other local users from injecting commands.
+
+**Known limitations**:
+- TCP transport has no TLS encryption — suitable for trusted networks or container-local use only. For untrusted networks, wrap with TLS tunnel.
+- Signing key is held in verifier process memory. If the verifier process itself is compromised, receipts cannot be trusted.
+- Single-port daemon: one verifier instance per socket/port. No built-in clustering or load balancing.
+- Built-in rules cover common patterns (SSRF, RCE, credential leak) but are not exhaustive. Production deployments should extend with domain-specific rules.
+
+**Not a replacement for**: Network firewalls, container isolation, or application-level access control. CCS Verifier is a defense-in-depth layer focused on runtime command verification.
