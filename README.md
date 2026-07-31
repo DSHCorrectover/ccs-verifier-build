@@ -2,7 +2,7 @@
 
 **Out-of-process runtime verification for AI agent commands.**
 
-CCS Verifier implements the [CCS (Command Control Standard)](https://doi.org/10.5281/zenodo.21234580) reference verification protocol. It runs in a **separate process** from the agent, ensuring that the verifier's rule evaluation and audit log cannot be subverted by agent-process memory corruption.
+CCS Verifier implements the [CCS (Command Control Standard)](https://doi.org/10.5281/zenodo.21271910) reference verification protocol. It runs in a **separate process** from the agent, ensuring that the verifier's rule evaluation and audit log cannot be subverted by agent-process memory corruption.
 
 ## Key Properties
 
@@ -129,8 +129,19 @@ class PathTraversalRule:
 
 ## Specification
 
-- CCS Protocol: [DOI:10.5281/zenodo.21234580](https://doi.org/10.5281/zenodo.21234580)
+- CCS Protocol: [DOI:10.5281/zenodo.21271910](https://doi.org/10.5281/zenodo.21271910)
 - 16 DOI-anchored specifications
+
+## Professional Audit Services
+
+Need enterprise-grade security auditing for your AI agent infrastructure? CCS provides semantic-aware runtime verification with proven results:
+
+- **Firecrawl**: CVSS 10.0 server-level RCE discovered
+- **Cloudflare mcp-server**: CVSS 9.8 exec() injection identified
+- **Microsoft agents**: 3 vulnerabilities (CVSS 7.5 / 7.2 / 5.3) reported to MSRC
+- **5 CVEs** assigned by MITRE
+
+Contact: [correctover.com](https://correctover.com) | wangguigui@correctover.com
 
 ## License
 
