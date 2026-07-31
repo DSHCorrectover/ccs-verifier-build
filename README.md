@@ -132,17 +132,6 @@ class PathTraversalRule:
 - CCS Protocol: [DOI:10.5281/zenodo.21271910](https://doi.org/10.5281/zenodo.21271910)
 - 16 DOI-anchored specifications
 
-## Professional Audit Services
-
-Need enterprise-grade security auditing for your AI agent infrastructure? CCS provides semantic-aware runtime verification with proven results:
-
-- **Firecrawl**: CVSS 10.0 server-level RCE discovered
-- **Cloudflare mcp-server**: CVSS 9.8 exec() injection identified
-- **Microsoft agents**: 3 vulnerabilities (CVSS 7.5 / 7.2 / 5.3) reported to MSRC
-- **5 CVEs** assigned by MITRE
-
-Contact: [correctover.com](https://correctover.com) | wangguigui@correctover.com
-
 ## License
 
 MIT
@@ -171,5 +160,7 @@ MIT
 CCS Verifier blocks the patterns it knows about. For a systematic audit of your agent runtime against the full CCS rule set, our team offers a paid deep-dive security review.
 
 [**Request a Security Audit →**](https://correctover.com/audit)
+
+**Get an audit for your team:** [correctover.com/audit](https://correctover.com/audit) | wangguigui@correctover.com
 
 ---
