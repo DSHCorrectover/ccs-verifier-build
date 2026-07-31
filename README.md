@@ -163,3 +163,13 @@ MIT
 - Built-in rules cover common patterns (SSRF, RCE, credential leak) but are not exhaustive. Production deployments should extend with domain-specific rules.
 
 **Not a replacement for**: Network firewalls, container isolation, or application-level access control. CCS Verifier is a defense-in-depth layer focused on runtime command verification.
+
+---
+
+## Request a Security Audit
+
+CCS Verifier blocks the patterns it knows about. For a systematic audit of your agent runtime against the full CCS rule set, our team offers a paid deep-dive security review.
+
+[**Request a Security Audit →**](https://correctover.com/audit)
+
+---
