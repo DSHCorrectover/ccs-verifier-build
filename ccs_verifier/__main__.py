@@ -86,7 +86,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--version",
         action="version",
-        version="ccs-verifier 0.4.0",
+        version="ccs-verifier 0.4.1",
     )
     return parser.parse_args()
 
@@ -140,7 +140,7 @@ def main() -> None:
     async def run() -> None:
         await server.start(transport=transport)
         logger.info(
-            f"CCS Verifier v0.4.0 listening on {transport.describe()} "
+            f"CCS Verifier v0.4.1 listening on {transport.describe()} "
             f"with rules: {[r.name for r in rules]}"
         )
         await server.serve_forever()

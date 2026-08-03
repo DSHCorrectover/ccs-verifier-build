@@ -15,7 +15,7 @@ import os
 from pathlib import Path
 from typing import Callable
 
-from ccs_verifier.transport.base import Transport, MessageFrame, TransportError
+from ccs_verifier.transport.base import Transport, TransportError
 
 DEFAULT_SOCKET_PATH = "/tmp/ccs-verifier.sock"
 

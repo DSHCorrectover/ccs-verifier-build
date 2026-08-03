@@ -76,12 +76,12 @@ print(f"Mode: {verifier.mode}")  # "out-of-process" or "in-process"
 
 ## Dimension-Level Error Codes
 
-v0.4.0 introduces per-dimension error codes following JSON-RPC 2.0 conventions, enabling upstream systems to make automated decisions:
+v0.4.1 introduces per-dimension error codes following JSON-RPC 2.0 conventions, enabling upstream systems to make automated decisions:
 
 | Dimension | Error Code | Constant | Retryable | Suggested Action |
 |-----------|-----------|----------|-----------|------------------|
 | Security | -32000 | `SECURITY` | No | Deny & log |
-| Integrity | -32001 | `INTEGRITY` | No | Circuit break |
+| Integrity | -32004 | `INTEGRITY` | No | Circuit break |
 | Identity | -32003 | `IDENTITY` | No | Alert operator |
 | Latency | -32005 | `LATENCY` | **Yes** | Retry |
 | Cost | -32006 | `COST` | No | Notify budget owner |

@@ -33,7 +33,7 @@ class DimensionError(Enum):
     dimension caused the denial, enabling automated retry/failover/circuit-break.
     """
     SECURITY = -32000        # General security rule interception (SSRF/RCE/CredLeak)
-    INTEGRITY = -32001       # Signature verification failure / data tampering
+    INTEGRITY = -32004       # Signature verification failure / data tampering (aligned with TS/Go)
     IDENTITY = -32003        # Model identity mismatch
     LATENCY = -32005         # Exceeded SLA deadline
     COST = -32006            # Exceeded budget

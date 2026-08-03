@@ -174,7 +174,7 @@ class VerifierServer:
                     response = {
                         "type": "health",
                         "status": "ok",
-                        "version": "0.4.0",
+                        "version": "0.4.1",
                         "uptime_s": round(time.time() - self._started_at, 1),
                         "rules": [r.name for r in self.rules],
                         "requests": self._request_count,
