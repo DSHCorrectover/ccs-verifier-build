@@ -19,7 +19,7 @@ Usage:
 """
 
 from ccs_verifier.protocol import (
-    Command, VerificationResult, Verdict, Rule, RuleResult, sign_receipt
+    Command, VerificationResult, Verdict, Rule, RuleResult, DimensionError, sign_receipt
 )
 from ccs_verifier.client import VerifierClient, Verifier
 from ccs_verifier.server import VerifierServer
@@ -31,7 +31,7 @@ from ccs_verifier.transport import (
     TCPSocketTransport,
 )
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __all__ = [
     # Protocol
     "Command",
@@ -39,6 +39,7 @@ __all__ = [
     "Verdict",
     "Rule",
     "RuleResult",
+    "DimensionError",
     "sign_receipt",
     # Client & Server
     "VerifierClient",

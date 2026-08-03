@@ -19,7 +19,7 @@ import time
 from typing import Sequence
 
 from ccs_verifier.protocol import (
-    Command, VerificationResult, Verdict, Rule, RuleResult, sign_receipt
+    Command, VerificationResult, Verdict, Rule, RuleResult, DimensionError, sign_receipt
 )
 from ccs_verifier.transport.base import Transport, MessageFrame, TransportError
 from ccs_verifier.transport.unix_socket import UnixSocketTransport
@@ -59,6 +59,7 @@ class VerifierServer:
         rule_results: list[RuleResult] = []
         final_verdict = Verdict.ALLOW
         block_reason = ""
+        error_code = DimensionError.default()  # default -32000
 
         for rule in self.rules:
             t0 = time.perf_counter()
@@ -69,16 +70,19 @@ class VerifierServer:
                 verdict=result.verdict,
                 reason=result.reason,
                 latency_us=latency_us,
+                error_code=result.error_code,  # propagate from rule
             )
             rule_results.append(result)
 
             if result.verdict == Verdict.DENY:
                 final_verdict = Verdict.DENY
                 block_reason = result.reason
+                error_code = result.error_code  # carry the triggering dimension's code
                 break
             elif result.verdict == Verdict.ESCALATE and final_verdict != Verdict.DENY:
                 final_verdict = Verdict.ESCALATE
                 block_reason = result.reason
+                # ESCALATE keeps default error_code (insufficient info to classify)
 
         now = time.time()
         rule_summary = "|".join(
@@ -103,6 +107,7 @@ class VerifierServer:
             verified_at=now,
             tool=command.tool,
             params_hash=command.params_hash(),
+            error_code=error_code,
         )
 
         self._audit_log.append(verification)
@@ -154,6 +159,7 @@ class VerifierServer:
                                 "verdict": r.verdict.value,
                                 "reason": r.reason,
                                 "latency_us": round(r.latency_us, 2),
+                                "error_code": r.error_code,
                             }
                             for r in result.rule_results
                         ],
@@ -161,13 +167,14 @@ class VerifierServer:
                         "verified_at": result.verified_at,
                         "tool": result.tool,
                         "params_hash": result.params_hash,
+                        "error_code": result.error_code,
                     }
 
                 elif msg_type == "health":
                     response = {
                         "type": "health",
                         "status": "ok",
-                        "version": "0.3.0",
+                        "version": "0.4.0",
                         "uptime_s": round(time.time() - self._started_at, 1),
                         "rules": [r.name for r in self.rules],
                         "requests": self._request_count,

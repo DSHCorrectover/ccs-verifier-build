@@ -11,13 +11,14 @@ import re
 import time
 from urllib.parse import urlparse
 
-from ccs_verifier.protocol import Command, RuleResult, Verdict
+from ccs_verifier.protocol import Command, RuleResult, Verdict, DimensionError
 
 
 class SSRFRule:
     """Detect Server-Side Request Forgery attempts."""
 
     name = "ssrf_protection"
+    dimension_error = DimensionError.SECURITY  # explicit dimension declaration
 
     _BLOCKED_SCHEMES = {"file", "gopher", "dict"}
     _BLOCKED_HOSTS = {
@@ -36,6 +37,7 @@ class SSRFRule:
                 rule_name=self.name,
                 verdict=Verdict.DENY,
                 reason=f"Blocked scheme: {parsed.scheme}",
+                error_code=self.dimension_error.value,
             )
 
         if parsed.hostname and parsed.hostname.lower() in self._BLOCKED_HOSTS:
@@ -43,6 +45,7 @@ class SSRFRule:
                 rule_name=self.name,
                 verdict=Verdict.DENY,
                 reason=f"Blocked host: {parsed.hostname}",
+                error_code=self.dimension_error.value,
             )
 
         latency = (time.perf_counter() - t0) * 1_000_000
@@ -53,6 +56,7 @@ class RCERule:
     """Detect Remote Code Execution patterns in shell commands."""
 
     name = "rce_protection"
+    dimension_error = DimensionError.SECURITY  # explicit dimension declaration
 
     _DANGEROUS_PATTERNS = [
         re.compile(r"(rm\s+-rf\s+/)"),
@@ -73,6 +77,7 @@ class RCERule:
                     verdict=Verdict.DENY,
                     reason=f"RCE pattern detected: {pattern.pattern}",
                     latency_us=latency,
+                    error_code=self.dimension_error.value,
                 )
 
         latency = (time.perf_counter() - t0) * 1_000_000
@@ -83,6 +88,7 @@ class CredentialLeakRule:
     """Detect attempts to exfiltrate credentials or secrets."""
 
     name = "credential_leak"
+    dimension_error = DimensionError.SECURITY  # explicit dimension declaration
 
     _SECRET_PATTERNS = [
         re.compile(r"(?i)(api[_-]?key|secret|token|password)\s*[:=]"),
@@ -103,6 +109,7 @@ class CredentialLeakRule:
                     verdict=Verdict.DENY,
                     reason=f"Credential pattern detected: {pattern.pattern[:30]}...",
                     latency_us=latency,
+                    error_code=self.dimension_error.value,
                 )
 
         latency = (time.perf_counter() - t0) * 1_000_000

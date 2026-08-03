@@ -106,6 +106,7 @@ class VerifierClient:
                             verdict=Verdict(r["verdict"]),
                             reason=r.get("reason", ""),
                             latency_us=r.get("latency_us", 0.0),
+                            error_code=r.get("error_code", -32000),  # backward-compatible default
                         )
                         for r in response.get("rule_results", [])
                     )
@@ -119,6 +120,7 @@ class VerifierClient:
                         verified_at=response.get("verified_at", time.time()),
                         tool=response.get("tool", ""),
                         params_hash=response.get("params_hash", ""),
+                        error_code=response.get("error_code", -32000),  # backward-compatible default
                     )
 
                 except TransportError as e:

@@ -8,7 +8,8 @@ CCS Verifier implements the [CCS (Command Control Standard)](https://doi.org/10.
 
 - **Process isolation**: Verifier runs in its own memory space. A segfault in the agent does not corrupt the audit log.
 - **HMAC-signed receipts**: Every verification decision is signed with an HMAC-SHA256 receipt, providing a tamper-evident audit trail.
-- **Sub-millisecond latency**: P50 ≈ 83μs (Unix socket), P99 ≈ 578μs for full cross-process round-trip.
+- **Dimension-level error codes**: Each CCS dimension (Structure, Schema, Latency, Cost, Identity, Integrity, Security) maps to a distinct error code, enabling automated failover/retry/circuit-break decisions.
+- **Sub-millisecond latency**: P50 ≈ 133μs (Unix socket), P99 ≈ 237μs for full cross-process round-trip.
 - **Zero external dependencies**: Pure Python, stdlib only.
 - **Pluggable rules**: SSRF, RCE, credential leak detection built-in. Extend with custom rules.
 
@@ -29,7 +30,8 @@ cmd = Command(
 result = verifier.verify(cmd)
 if not result.allowed:
     print(f"Blocked: {result.block_reason}")
-    # → Blocked: RCE pattern detected: (curl|wget)\s*.*\|\s*(bash|sh|python)
+    print(f"Error code: {result.error_code}")  # -32000 (SECURITY)
+    print(f"Retryable: {result.retryable}")     # False
 ```
 
 ### Out-of-Process (strongest isolation)
@@ -57,6 +59,7 @@ await client.connect()
 
 result = await client.verify(command)
 print(result.verdict, result.receipt)
+print(result.error_code, result.retryable)
 ```
 
 ### Auto-Detect Mode
@@ -71,21 +74,46 @@ result = verifier.verify(command)
 print(f"Mode: {verifier.mode}")  # "out-of-process" or "in-process"
 ```
 
+## Dimension-Level Error Codes
+
+v0.4.0 introduces per-dimension error codes following JSON-RPC 2.0 conventions, enabling upstream systems to make automated decisions:
+
+| Dimension | Error Code | Constant | Retryable | Suggested Action |
+|-----------|-----------|----------|-----------|------------------|
+| Security | -32000 | `SECURITY` | No | Deny & log |
+| Integrity | -32001 | `INTEGRITY` | No | Circuit break |
+| Identity | -32003 | `IDENTITY` | No | Alert operator |
+| Latency | -32005 | `LATENCY` | **Yes** | Retry |
+| Cost | -32006 | `COST` | No | Notify budget owner |
+| Schema | -32602 | `SCHEMA` | No | Fix request format |
+| Structure | -32700 | `STRUCTURE` | No | Fix output format |
+
+```python
+from ccs_verifier import DimensionError
+
+# Check error dimension
+if result.error_code == DimensionError.LATENCY.value:
+    # Retry the operation
+    result = await client.verify(command)
+elif result.error_code == DimensionError.SECURITY.value:
+    # Block and alert
+    log_security_event(result)
+```
+
 ## Transport Options
 
 | Transport | Latency | Use Case |
 |-----------|---------|----------|
-| Unix socket | P50 ≈ 110μs | Local deployment (recommended) |
+| Unix socket | P50 ≈ 133μs | Local deployment (recommended) |
 | TCP | P50 ≈ 200μs | Cross-machine, containerized |
 
 ## Performance
 
-Benchmarked on Linux (asyncio Unix socket, 3 rules):
+Benchmarked on Linux (asyncio Unix socket, 3 rules, 500 samples):
 
 ```
-1000 verifications in 0.12s
-Throughput: 8,308 req/s
-Latency — avg: 117μs, P50: 110μs, P95: 161μs, P99: 223μs
+Throughput: 7,122 req/s
+Latency — avg: 140μs, P50: 133μs, P95: 183μs, P99: 237μs
 ```
 
 ## Protocol
@@ -103,18 +131,19 @@ Request:
 
 Response:
 ```json
-{"type":"result","trace_id":"abc123","verdict":"deny","block_reason":"RCE pattern detected","receipt":"hmac_sha256_hex","rule_results":[...]}
+{"type":"result","trace_id":"abc123","verdict":"deny","error_code":-32000,"block_reason":"RCE pattern detected","receipt":"hmac_sha256_hex","rule_results":[...]}
 ```
 
 ## Custom Rules
 
-Implement the `Rule` protocol:
+Implement the `Rule` protocol with a `dimension_error` attribute:
 
 ```python
-from ccs_verifier.protocol import Command, RuleResult, Verdict
+from ccs_verifier.protocol import Command, RuleResult, Verdict, DimensionError
 
 class PathTraversalRule:
     name = "path_traversal"
+    dimension_error = DimensionError.STRUCTURE  # -32700
     
     def evaluate(self, command: Command) -> RuleResult:
         path = command.params.get("path", "")
@@ -123,9 +152,18 @@ class PathTraversalRule:
                 rule_name=self.name,
                 verdict=Verdict.DENY,
                 reason=f"Path traversal detected: {path}",
+                error_code=self.dimension_error.value,
             )
         return RuleResult(rule_name=self.name, verdict=Verdict.ALLOW)
 ```
+
+## Backward Compatibility
+
+v0.4.0 is fully backward compatible with v0.3.0:
+- `sign_receipt()` is unchanged — HMAC receipts are byte-identical
+- `error_code` defaults to `-32000` (SECURITY) when not specified
+- v0.3.0 clients ignore the new `error_code` field in responses
+- v0.4.0 clients handle missing `error_code` from v0.3.0 servers gracefully
 
 ## Specification
 

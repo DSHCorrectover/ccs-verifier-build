@@ -22,6 +22,30 @@ class Verdict(Enum):
     ESCALATE = "escalate"
 
 
+class DimensionError(Enum):
+    """
+    CCS dimension-specific error codes following JSON-RPC 2.0 conventions.
+
+    - -32700 to -32600: JSON-RPC standard errors
+    - -32000 to -32099: Server-defined errors (implementation-specific)
+
+    The error_code on a VerificationResult tells the upstream system WHICH
+    dimension caused the denial, enabling automated retry/failover/circuit-break.
+    """
+    SECURITY = -32000        # General security rule interception (SSRF/RCE/CredLeak)
+    INTEGRITY = -32001       # Signature verification failure / data tampering
+    IDENTITY = -32003        # Model identity mismatch
+    LATENCY = -32005         # Exceeded SLA deadline
+    COST = -32006            # Exceeded budget
+    SCHEMA = -32602          # Field values don't match declared schema
+    STRUCTURE = -32700       # Output structure invalid (JSON parse / missing fields)
+
+    @classmethod
+    def default(cls) -> int:
+        """Default error code for backward compatibility."""
+        return cls.SECURITY.value
+
+
 @dataclass(frozen=True)
 class Command:
     """Immutable command representation for cross-process verification."""
@@ -57,6 +81,7 @@ class RuleResult:
     verdict: Verdict
     reason: str = ""
     latency_us: float = 0.0
+    error_code: int = -32000  # dimension-specific error code (default: SECURITY)
 
 
 @dataclass(frozen=True)
@@ -76,6 +101,7 @@ class VerificationResult:
     verified_at: float = field(default_factory=time.time)
     tool: str = ""
     params_hash: str = ""
+    error_code: int = -32000  # error code from the triggering dimension (default: SECURITY)
 
     @property
     def allowed(self) -> bool:
@@ -84,6 +110,11 @@ class VerificationResult:
     @property
     def total_latency_us(self) -> float:
         return sum(r.latency_us for r in self.rule_results)
+
+    @property
+    def retryable(self) -> bool:
+        """Whether the upstream system should retry after this denial."""
+        return self.error_code == DimensionError.LATENCY.value
 
 
 @runtime_checkable

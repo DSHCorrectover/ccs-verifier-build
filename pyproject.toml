@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ccs-verifier"
-version = "0.3.0"
+version = "0.4.0"
 description = "CCS Runtime Verifier — Out-of-process verification for AI agent commands"
 readme = "README.md"
 license = {text = "MIT"}
