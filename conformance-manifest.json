@@ -102,6 +102,5 @@
     ],
     "expected": "17/17 conformance tests PASS, benchmark P50 < 1000μs"
   },
-  "pypi_wheel_sha256": "76380d4588b78f274a01e9830e6d7796ef5e9a25593b4aa3820241c1de4d7f99",
-  "self_sha256": "9c49008e5f6c71eaaee9e1827a67157afa44966ffc6082792ae2c978dccc219b"
+  "pypi_wheel_sha256": "76380d4588b78f274a01e9830e6d7796ef5e9a25593b4aa3820241c1de4d7f99"
 }
