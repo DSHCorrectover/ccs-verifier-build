@@ -1,0 +1,53 @@
+{
+  "timestamp": "2026-08-05T06:54:54Z",
+  "runtime": "cpython-3.13.12",
+  "samples": 1000,
+  "warmup": 100,
+  "benchmarks": {
+    "l1_full_receipt_generation": {
+      "mean_us": 81.2,
+      "p50_us": 75.5,
+      "p95_us": 105.7,
+      "p99_us": 169.1,
+      "min_us": 69.3,
+      "max_us": 386.2,
+      "samples": 1000
+    },
+    "l1_full_receipt_verification": {
+      "mean_us": 149.0,
+      "p50_us": 140.3,
+      "p95_us": 199.6,
+      "p99_us": 330.4,
+      "min_us": 129.2,
+      "max_us": 686.6,
+      "samples": 1000
+    },
+    "l0_hmac_sha256": {
+      "mean_us": 2.5,
+      "p50_us": 2.3,
+      "p95_us": 3.8,
+      "p99_us": 4.8,
+      "min_us": 2.2,
+      "max_us": 23.8,
+      "samples": 1000
+    },
+    "ed25519_sign_only": {
+      "mean_us": 33.0,
+      "p50_us": 31.6,
+      "p95_us": 39.9,
+      "p99_us": 45.3,
+      "min_us": 31.4,
+      "max_us": 190.4,
+      "samples": 1000
+    },
+    "ed25519_verify_only": {
+      "mean_us": 116.1,
+      "p50_us": 105.6,
+      "p95_us": 149.2,
+      "p99_us": 154.4,
+      "min_us": 100.0,
+      "max_us": 183.5,
+      "samples": 1000
+    }
+  }
+}

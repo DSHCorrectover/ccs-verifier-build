@@ -1,0 +1,12 @@
+{
+  "id": "CAID-001",
+  "category": "caid_action_mapping",
+  "description": "Exact match: 'shell' maps to shell.execute",
+  "input": {
+    "tool_name": "shell"
+  },
+  "expected_output": {
+    "action": "shell.execute",
+    "resolution": "exact_match"
+  }
+}

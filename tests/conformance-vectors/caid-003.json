@@ -1,0 +1,12 @@
+{
+  "id": "CAID-003",
+  "category": "caid_action_mapping",
+  "description": "Heuristic match: 'custom_read_handler' maps to file.read via keyword",
+  "input": {
+    "tool_name": "custom_read_handler"
+  },
+  "expected_output": {
+    "action": "file.read",
+    "resolution": "heuristic_keyword"
+  }
+}

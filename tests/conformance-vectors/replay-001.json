@@ -1,0 +1,25 @@
+{
+  "id": "REPLAY-001",
+  "category": "anti_replay",
+  "description": "Replay detection: duplicate nonce across two receipts \u2014 sequence must differ",
+  "input": {
+    "agent_id": "agent:replay-nonce",
+    "tool": "shell",
+    "params": {
+      "command": "date"
+    },
+    "trace_id": "trc_replay_001",
+    "request_timestamp": 1722844800.0,
+    "verdict": "allow",
+    "block_reason": "",
+    "rule_results": [],
+    "verified_at": 1722844801.0,
+    "error_code": -32000
+  },
+  "expected_output": {
+    "pass": true,
+    "unique_nonce_per_receipt": true,
+    "sequence_monotonic": true,
+    "reason": "each_receipt_gets_unique_nonce_and_incremented_sequence"
+  }
+}

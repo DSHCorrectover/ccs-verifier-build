@@ -202,3 +202,14 @@ CCS Verifier blocks the patterns it knows about. For a systematic audit of your 
 **Get an audit for your team:** [correctover.com/audit](https://correctover.com/audit) | wangguigui@correctover.com
 
 ---
+
+
+## Receipt L1 (Ed25519 Public-Key Verification)
+
+L1 receipts extend L0 HMAC-SHA256 with Ed25519 signatures and a full evidence chain (23 fields, 13 Iman Schrock composition fields). This enables third-party independently-verifiable receipts: any party with the public key can verify receipt integrity without shared secrets.
+
+- **17/17 conformance cases passed** (see `tests/conformance-vectors/`)
+- **P50 overhead: 75.5μs** (full receipt generation, 1000 samples)
+- Manifest: [`conformance-manifest.json`](conformance-manifest.json)
+
+Conformance categories: L0 basic receipt (2), L1 Ed25519 receipt (2), L1 fail/tamper (3), tamper detection (3), anti-replay (3), CAID action mapping (4).

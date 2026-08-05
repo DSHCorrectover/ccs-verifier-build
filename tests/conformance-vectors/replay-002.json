@@ -1,0 +1,30 @@
+{
+  "id": "REPLAY-002",
+  "category": "anti_replay",
+  "description": "Expired receipt: issuance in the past, beyond expiry + clock_skew \u2014 expect temporal_valid=False",
+  "input": {
+    "agent_id": "agent:replay-expired",
+    "tool": "shell",
+    "params": {
+      "command": "whoami"
+    },
+    "trace_id": "trc_replay_expired_001",
+    "request_timestamp": 1722844200.0,
+    "verdict": "allow",
+    "block_reason": "",
+    "rule_results": [],
+    "verified_at": 1722844200.0,
+    "error_code": -32000,
+    "verify_at_time": 1722845000.0,
+    "validity_seconds": 300,
+    "clock_skew_bounds": {
+      "min_skew_s": -30,
+      "max_skew_s": 30
+    }
+  },
+  "expected_output": {
+    "pass": false,
+    "temporal_valid": false,
+    "reason": "receipt_expired_beyond_clock_skew_tolerance"
+  }
+}

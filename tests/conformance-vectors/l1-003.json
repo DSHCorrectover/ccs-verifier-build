@@ -1,0 +1,26 @@
+{
+  "id": "L1-003",
+  "category": "L1_ed25519_receipt_fail",
+  "description": "L1 receipt with tampered verdict field \u2014 expect signature_valid=False",
+  "input": {
+    "agent_id": "agent:tamper-test",
+    "tool": "read_file",
+    "params": {
+      "path": "/data/safe.txt"
+    },
+    "trace_id": "trc_l1_tamper_001",
+    "request_timestamp": 1722844800.0,
+    "verdict": "allow",
+    "block_reason": "",
+    "rule_results": [],
+    "verified_at": 1722844801.0,
+    "error_code": -32000,
+    "tamper_field": "verdict",
+    "tamper_value": "deny"
+  },
+  "expected_output": {
+    "pass": false,
+    "signature_valid": false,
+    "reason": "tampered_verdict_invalidates_signature"
+  }
+}

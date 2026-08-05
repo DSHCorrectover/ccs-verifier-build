@@ -1,0 +1,32 @@
+{
+  "id": "L1-001",
+  "category": "L1_ed25519_receipt",
+  "description": "L1 Ed25519 receipt \u2014 full build + verify, expect all_pass=True",
+  "input": {
+    "agent_id": "agent:test-l1",
+    "tool": "read_file",
+    "params": {
+      "path": "/data/report.csv"
+    },
+    "trace_id": "trc_l1_pass_001",
+    "request_timestamp": 1722844800.0,
+    "verdict": "allow",
+    "block_reason": "",
+    "rule_results": [
+      {
+        "rule": "rce_protection",
+        "verdict": "allow"
+      }
+    ],
+    "verified_at": 1722844801.0,
+    "error_code": -32000
+  },
+  "expected_output": {
+    "pass": true,
+    "signature_valid": true,
+    "temporal_valid": true,
+    "receipt_level_1": true,
+    "all_fields_present": true,
+    "ed25519_algorithm": true
+  }
+}

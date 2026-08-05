@@ -1,0 +1,26 @@
+{
+  "id": "TAMPER-002",
+  "category": "tamper_detection",
+  "description": "Tamper nonce field \u2014 anti-replay nonce change invalidates signature",
+  "input": {
+    "agent_id": "agent:tamper-nonce",
+    "tool": "read_file",
+    "params": {
+      "path": "/etc/hosts"
+    },
+    "trace_id": "trc_tamper_nonce_001",
+    "request_timestamp": 1722844800.0,
+    "verdict": "allow",
+    "block_reason": "",
+    "rule_results": [],
+    "verified_at": 1722844801.0,
+    "error_code": -32000,
+    "tamper_field": "nonce",
+    "tamper_value": "deadbeefdeadbeefdeadbeefdeadbeef"
+  },
+  "expected_output": {
+    "pass": false,
+    "signature_valid": false,
+    "reason": "tampered_nonce_invalidates_signature"
+  }
+}

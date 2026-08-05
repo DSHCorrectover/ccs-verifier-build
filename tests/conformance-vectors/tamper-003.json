@@ -1,0 +1,27 @@
+{
+  "id": "TAMPER-003",
+  "category": "tamper_detection",
+  "description": "Tamper public_key field \u2014 swapped key invalidates signature",
+  "input": {
+    "agent_id": "agent:tamper-pk",
+    "tool": "write_file",
+    "params": {
+      "path": "/tmp/log.txt",
+      "content": "hello"
+    },
+    "trace_id": "trc_tamper_pk_001",
+    "request_timestamp": 1722844800.0,
+    "verdict": "allow",
+    "block_reason": "",
+    "rule_results": [],
+    "verified_at": 1722844801.0,
+    "error_code": -32000,
+    "tamper_field": "public_key",
+    "tamper_value": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  "expected_output": {
+    "pass": false,
+    "signature_valid": false,
+    "reason": "tampered_public_key_invalidates_signature"
+  }
+}
