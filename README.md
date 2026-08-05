@@ -191,19 +191,6 @@ MIT
 
 **Not a replacement for**: Network firewalls, container isolation, or application-level access control. CCS Verifier is a defense-in-depth layer focused on runtime command verification.
 
----
-
-## Request a Security Audit
-
-CCS Verifier blocks the patterns it knows about. For a systematic audit of your agent runtime against the full CCS rule set, our team offers a paid deep-dive security review.
-
-[**Request a Security Audit →**](https://correctover.com/audit)
-
-**Get an audit for your team:** [correctover.com/audit](https://correctover.com/audit) | wangguigui@correctover.com
-
----
-
-
 ## Receipt L1 (Ed25519 Public-Key Verification)
 
 L1 receipts extend L0 HMAC-SHA256 with Ed25519 signatures and a full evidence chain (23 fields, 13 Iman Schrock composition fields). This enables third-party independently-verifiable receipts: any party with the public key can verify receipt integrity without shared secrets.
