@@ -317,6 +317,25 @@ def compute_config_hash(
     return _sha256_hex(_canonical_json(payload))
 
 
+def compute_rule_hash(rule_version: str, rule_name: str = "") -> str:
+    """
+    Compute a SHA-256 hash of the rule identity.
+
+    "Pin the rule, not just the action" — this hash binds a receipt to the
+    specific decision rule version that produced the action, enabling
+    auditing of which rule logic was active at signing time.
+
+    Args:
+        rule_version: Semantic version or identifier of the rule set.
+        rule_name: Optional rule name for additional disambiguation.
+
+    Returns:
+        64-character hex SHA-256 digest.
+    """
+    payload = {"rule_version": rule_version, "rule_name": rule_name}
+    return _sha256_hex(_canonical_json(payload))
+
+
 def capture_runtime_context() -> dict[str, Any]:
     """Capture current runtime environment state."""
     return {
@@ -480,6 +499,13 @@ class L1Receipt:
     verifier_deployment_mode: str = ""    # [13] Deployment topology
     verifier_version: str = ""            # [13] Verifier version
 
+    # --- L1 v1.1: Rule pinning (improvement: pin the rule, not just the action) ---
+    rule_version: str = ""                # Decision rule version that produced this action
+
+    # --- L1 v1.1: Approval-execution cryptographic binding ---
+    tool_call_id: str = ""                # Unique identifier for a tool call instance
+    args_digest: str = ""                 # SHA-256 of exact pre-execution arguments
+
     # --- L1: Signature (field 12) ---
     signature_algorithm: str = "Ed25519"
     public_key: str = ""            # [12] Hex-encoded Ed25519 public key
@@ -638,6 +664,10 @@ class L1ReceiptBuilder:
         hmac_key: Optional[bytes] = None,
         # Optional: override runtime context
         runtime_context: Optional[dict] = None,
+        # v1.1: Rule pinning and approval-execution binding
+        rule_version: str = "",
+        tool_call_id: str = "",
+        args_digest: str = "",
     ) -> L1Receipt:
         """
         Build a complete Level 1 receipt.
@@ -655,6 +685,9 @@ class L1ReceiptBuilder:
             error_code: Dimension error code.
             hmac_key: Optional HMAC key for dual L0+L1 signing.
             runtime_context: Optional pre-captured runtime context.
+            rule_version: Decision rule version (v1.1). Pins the rule that produced this action.
+            tool_call_id: Unique tool call instance ID (v1.1). Auto-derived from trace_id+tool+nonce if empty.
+            args_digest: SHA-256 of exact pre-execution arguments (v1.1). Auto-computed from params if empty.
 
         Returns:
             L1Receipt with Ed25519 signature.
@@ -695,10 +728,21 @@ class L1ReceiptBuilder:
         # --- Params hash (L0 compat, short) ---
         params_hash = _short_hash(_canonical_json(params))
 
+        # --- v1.1: Auto-derive args_digest from params if not provided ---
+        if not args_digest and params:
+            args_digest = hashlib.sha256(_canonical_json(params)).hexdigest()[:16]
+
+        # --- v1.1: Auto-derive tool_call_id from trace_id + tool + nonce ---
+        if not tool_call_id:
+            tool_call_id = _short_hash(
+                _canonical_json({"trace_id": trace_id, "tool": tool, "nonce": nonce}),
+                length=32,
+            )
+
         # --- Build receipt ---
         receipt = L1Receipt(
             receipt_level=1,
-            receipt_version="1.0",
+            receipt_version="1.1",
             trace_id=trace_id,
             verdict=verdict,
             timestamp=issuance_dt.isoformat(),
@@ -719,6 +763,9 @@ class L1ReceiptBuilder:
             verifier_source_class=self._verifier_source_class,
             verifier_deployment_mode=self._verifier_deployment_mode,
             verifier_version=self._verifier_version,
+            rule_version=rule_version,
+            tool_call_id=tool_call_id,
+            args_digest=args_digest,
             signature_algorithm="Ed25519",
             public_key=self._signer.get_public_key_hex(),
             signature="",  # placeholder, filled below
@@ -846,6 +893,7 @@ __all__ = [
     "compute_response_hash",
     "compute_runtime_context_hash",
     "compute_config_hash",
+    "compute_rule_hash",
     "capture_runtime_context",
     # Verification
     "verify_ed25519_signature",
