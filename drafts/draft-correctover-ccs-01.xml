@@ -1249,9 +1249,45 @@ def govern(fn, policy="default"):
    request_hash, config_hash.  The receipt binds to the exact request
    bytes and the exact configuration.</t>
 
+	    In addition to Level 0, the verifier produces receipts with:
+    request_hash, config_hash, rule_version, tool_call_id, args_digest.
+    The receipt binds to the exact request bytes, the exact
+    configuration, the rule version that produced the decision, the
+    tool-call identity, and the argument digest.</t>
+
 	<t>
-   A Level 1 implementation provides stronger replay resistance (via
-   request_hash) and configuration binding (via config_hash).</t>
+    A Level 1 implementation provides stronger replay resistance (via
+    request_hash), configuration binding (via config_hash), decision
+    causality verification (via rule_version), and silent-drop
+    prevention (via tool_call_id and args_digest).</t>
+
+	<t>
+    *v1.1 new fields (L1):*</t>
+
+	<t><list style="hanging" hangIndent="4">
+	<t hangText="rule_version (string):">Identifies the rule set version
+	that produced the decision.  Bound into the HMAC/Ed25519 chain so
+	that an auditor can verify which rule version authorized each
+	action, enabling decision causality verification.</t>
+
+	<t hangText="tool_call_id (string):">The unique tool-call identifier
+	from the agent runtime.  The pre-execution receipt binds to this
+	ID, ensuring that the approved action is the action that was
+	executed.  This prevents silent-drop attacks where a verified
+	command is replaced before execution.</t>
+
+	<t hangText="args_digest (string):">SHA-256 digest of the tool-call
+	arguments.  Bound into the receipt to prevent argument substitution
+	between verification and execution.</t>
+	</list></t>
+
+	<t>
+    Together, tool_call_id and args_digest verify that "the action
+    approved is the action executed" (anti-silent-drop), while
+    rule_version verifies "which rule produced each call" (decision
+    causality).  The Ed25519 signature covers all three new fields.
+    Backward compatible: when not provided, default empty-string values
+    are used and existing callers require no modification.</t>
 
 	<t>
    *Level 2 — Full AEC Readiness:*</t>

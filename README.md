@@ -200,3 +200,37 @@ L1 receipts extend L0 HMAC-SHA256 with Ed25519 signatures and a full evidence ch
 - Manifest: [`conformance-manifest.json`](conformance-manifest.json)
 
 Conformance categories: L0 basic receipt (2), L1 Ed25519 receipt (2), L1 fail/tamper (3), tamper detection (3), anti-replay (3), CAID action mapping (4).
+
+## CCS v1.1 — Receipt Upgrade
+
+CCS v1.1 extends the L1 receipt with three new fields to strengthen the decision-action binding and enable decision causality verification:
+
+### New L1 Receipt Fields
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `rule_version` | string | Identifies the rule set version that produced the decision. Bound into the HMAC chain for **decision causality verifiability** — an auditor can verify *which rule version* authorized each action. |
+| `tool_call_id` | string | The unique tool-call ID from the agent runtime. Pre-execution receipt binds to this ID, ensuring **the approved action is the executed action** (anti-silent-drop). |
+| `args_digest` | string | SHA-256 digest of the tool-call arguments. Prevents argument substitution between verification and execution. |
+
+### Security Properties
+
+- **Anti-silent-drop**: `tool_call_id` + `args_digest` together ensure the receipt is bound to a specific tool invocation with specific arguments. An attacker cannot silently drop a verified command and substitute a different one.
+- **Decision causality**: `rule_version` enables verifiable "why was this allowed?" queries — trace any decision back to the exact rule set in effect.
+- **Ed25519 signature coverage**: All three new fields are included in the Ed25519 signature, maintaining full tamper-evidence.
+
+### Backward Compatibility
+
+v1.1 is fully backward compatible:
+- When new fields are not provided, sensible defaults are used (`rule_version=""`, `tool_call_id=""`, `args_digest=""`).
+- Existing callers do not need to modify their code.
+- The Ed25519 signature covers all fields including defaults, so the receipt remains tamper-evident.
+
+### Performance
+
+- **154 tests passing** — full conformance suite including all v1.1 vectors.
+- **P50 ≈ 78μs** — negligible overhead for the additional bindings.
+
+These changes correspond to the two architecture suggestions from yun520-1 on autogen#7265.
+
+
