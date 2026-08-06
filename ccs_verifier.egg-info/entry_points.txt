@@ -1,0 +1,2 @@
+[console_scripts]
+ccs-verifier = ccs_verifier.__main__:main
