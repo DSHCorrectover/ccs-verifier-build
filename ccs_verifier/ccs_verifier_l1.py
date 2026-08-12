@@ -313,11 +313,10 @@ class L1Receipt:
             # Canonicalize: decode then re-encode to ensure unique representation
             sig_bytes = base64.b64decode(self.signature, validate=True)
             canonical_sig = base64.b64encode(sig_bytes).decode("ascii")
-            # If the input wasn't canonical, normalize it on the receipt
+            # Reject non-canonical Base64 signatures to prevent forgery
+            # via alternative encodings that decode to the same bytes.
             if canonical_sig != self.signature:
-                # We still use the decoded bytes for verification but note
-                # that the input was non-canonical
-                pass
+                return False
         except Exception:
             return False
 

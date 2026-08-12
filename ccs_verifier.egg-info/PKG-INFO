@@ -1,17 +1,24 @@
 Metadata-Version: 2.4
 Name: ccs-verifier
-Version: 1.1.0
+Version: 1.1.5
 Summary: CCS Runtime Verifier — Out-of-process verification for AI agent commands
-License: MIT
+License: Proprietary Commercial License
 Keywords: security,ai,agent,mcp,runtime-verification,ccs
 Classifier: Development Status :: 4 - Beta
 Classifier: Intended Audience :: Developers
-Classifier: License :: OSI Approved :: MIT License
+Classifier: License :: Other/Proprietary License
 Classifier: Programming Language :: Python :: 3
 Classifier: Topic :: Security
 Requires-Python: >=3.10
 Description-Content-Type: text/markdown
 License-File: LICENSE
+Requires-Dist: jcs>=0.2
+Provides-Extra: l1
+Requires-Dist: cryptography>=41.0; extra == "l1"
+Provides-Extra: dev
+Requires-Dist: cryptography>=41.0; extra == "dev"
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21; extra == "dev"
 Dynamic: license-file
 
 # CCS Verifier

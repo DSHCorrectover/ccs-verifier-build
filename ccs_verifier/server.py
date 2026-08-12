@@ -35,7 +35,7 @@ from ccs_verifier.transport.unix_socket import UnixSocketTransport
 
 logger = logging.getLogger("ccs_verifier.server")
 
-VERSION = "1.1.5"
+VERSION = "1.1.6"
 
 
 class VerifierServer:
@@ -98,7 +98,7 @@ class VerifierServer:
         self._clock_skew_bound = clock_skew_bound
 
         # Rule version for L1 receipts
-        self._rule_version = "1.1.5"
+        self._rule_version = "1.1.6"
 
         # Config hash (based on rule set)
         self._config_hash = compute_hash({
