@@ -8,17 +8,24 @@ Key security property: The process boundary ensures that even if the
 agent process is fully compromised (memory corruption, code injection),
 the verifier's rule evaluation and audit log remain intact in a separate
 process with its own memory space.
+
+Supports both L0 (HMAC-SHA256) and L1 (Ed25519) receipt modes.
 """
 
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
+import warnings
 from typing import Optional, Sequence
+
+logger = logging.getLogger("ccs_verifier.client")
 
 from ccs_verifier.protocol import (
     Command, VerificationResult, Verdict, Rule, RuleResult
 )
+from ccs_verifier.ccs_verifier_l1 import L1Receipt
 from ccs_verifier.transport.base import Transport, MessageFrame, TransportError
 from ccs_verifier.transport.unix_socket import UnixSocketTransport
 from ccs_verifier.transport.tcp_socket import TCPSocketTransport
@@ -28,6 +35,9 @@ from ccs_verifier.server import VerifierServer
 class VerifierClient:
     """
     Client for connecting to an out-of-process CCS verifier.
+
+    Supports both L0 (HMAC) and L1 (Ed25519) receipt modes.
+    The server determines which mode to use based on its configuration.
 
     Usage (Unix socket — default, recommended):
         verifier = VerifierClient()  # uses /tmp/ccs-verifier.sock
@@ -55,6 +65,7 @@ class VerifierClient:
         self._writer: asyncio.StreamWriter | None = None
         self._connected = False
         self._lock = asyncio.Lock()
+        self._l1_public_key: Optional[bytes] = None
 
     async def connect(self) -> None:
         """Establish connection to verifier process."""
@@ -74,6 +85,9 @@ class VerifierClient:
         Send command to verifier for out-of-process evaluation.
 
         Returns VerificationResult with signed receipt.
+        If the server supports L1 mode, the l1_receipt attribute will
+        contain the full L1Receipt dict.
+
         Raises TransportError if verifier is unreachable.
         """
         async with self._lock:
@@ -111,7 +125,7 @@ class VerifierClient:
                         for r in response.get("rule_results", [])
                     )
 
-                    return VerificationResult(
+                    result = VerificationResult(
                         trace_id=response["trace_id"],
                         verdict=Verdict(response["verdict"]),
                         block_reason=response.get("block_reason", ""),
@@ -122,6 +136,12 @@ class VerifierClient:
                         params_hash=response.get("params_hash", ""),
                         error_code=response.get("error_code", -32000),  # backward-compatible default
                     )
+
+                    # Include L1 receipt if present in response
+                    if "l1_receipt" in response and response["l1_receipt"]:
+                        object.__setattr__(result, 'l1_receipt', response["l1_receipt"])
+
+                    return result
 
                 except TransportError as e:
                     last_error = e
@@ -149,8 +169,8 @@ class VerifierClient:
     async def health_check(self) -> dict:
         """
         Check verifier process liveness and get stats.
-        
-        Returns dict with status, version, uptime, rules, etc.
+
+        Returns dict with status, version, uptime, rules, l1_enabled, etc.
         """
         async with self._lock:
             await self._ensure_connected()
@@ -180,6 +200,44 @@ class VerifierClient:
             )
             return response.get("rules", [])
 
+    async def get_l1_public_key(self) -> dict:
+        """
+        Get the L1 Ed25519 public key from the server for receipt verification.
+
+        Returns dict with public_key (hex), fingerprint, and algorithm.
+        """
+        async with self._lock:
+            await self._ensure_connected()
+            assert self._reader and self._writer
+
+            self._writer.write(MessageFrame.encode({"type": "get_l1_public_key"}))
+            await self._writer.drain()
+
+            response = await asyncio.wait_for(
+                MessageFrame.decode(self._reader),
+                timeout=self.timeout_ms / 1000.0,
+            )
+            if response.get("type") == "error":
+                raise TransportError(response.get("message", "L1 mode not enabled"))
+            self._l1_public_key = bytes.fromhex(response["public_key"])
+            return response
+
+    async def verify_l1_receipt(self, l1_receipt_data: dict) -> bool:
+        """
+        Verify an L1 receipt using the server's public key.
+
+        Args:
+            l1_receipt_data: Dict from result.l1_receipt.
+
+        Returns:
+            True if signature is valid.
+        """
+        if self._l1_public_key is None:
+            await self.get_l1_public_key()
+        receipt = L1Receipt.from_dict(l1_receipt_data)
+        assert self._l1_public_key is not None
+        return receipt.verify_signature(self._l1_public_key)
+
     async def close(self) -> None:
         """Close the verifier connection."""
         if self._writer:
@@ -191,6 +249,7 @@ class VerifierClient:
         self._connected = False
         self._reader = None
         self._writer = None
+        self._l1_public_key = None
 
 
 class Verifier:
@@ -200,6 +259,8 @@ class Verifier:
     If a running verifier server is detected, uses out-of-process verification
     (strongest security). Otherwise, falls back to in-process verification.
 
+    Supports both L0 (HMAC) and L1 (Ed25519) receipt modes.
+
     Usage:
         # Auto-detect (recommended)
         verifier = Verifier(rules=[SSRFRule(), RCERule()])
@@ -207,40 +268,54 @@ class Verifier:
 
         # Force out-of-process
         verifier = Verifier(rules=[SSRFRule()], mode="out-of-process")
-        
-        # Force in-process
-        verifier = Verifier(rules=[SSRFRule()], mode="in-process")
+
+        # Force in-process with L1 Ed25519 receipts
+        from ccs_verifier import generate_ed25519_key
+        key = generate_ed25519_key()
+        verifier = Verifier(rules=[SSRFRule()], mode="in-process", l1_signing_key=key)
     """
 
     def __init__(
         self,
         rules: Sequence[Rule],
         signing_key: bytes | None = None,
+        l1_signing_key: bytes | None = None,
         transport: Transport | None = None,
         mode: str = "auto",
         timeout_ms: int = 5000,
+        require_oop: bool = False,
     ):
         """
         Args:
             rules: Verification rules to apply.
-            signing_key: HMAC signing key (server-only, for in-process mode).
+            signing_key: HMAC signing key (L0, server-only, for in-process mode).
+            l1_signing_key: Ed25519 signing key (L1, enables L1 receipt mode).
             transport: Transport for out-of-process mode.
             mode: "auto" (try OOP first, fallback to in-process),
                   "out-of-process" (require server),
                   "in-process" (no server needed).
             timeout_ms: Timeout for out-of-process verification.
+            require_oop: If True, raise RuntimeError when auto mode cannot
+                connect to an out-of-process server (prevents silent fallback
+                to weaker in-process verification).
         """
         self._rules = list(rules)
         self._mode = mode
         self._transport = transport
         self._timeout_ms = timeout_ms
+        self._l1_signing_key = l1_signing_key
+        self._require_oop = require_oop
         self._client: VerifierClient | None = None
         self._server: VerifierServer | None = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._oop_available = False
 
         if mode == "in-process":
-            self._server = VerifierServer(rules=rules, signing_key=signing_key)
+            self._server = VerifierServer(
+                rules=rules,
+                signing_key=signing_key,
+                l1_signing_key=l1_signing_key,
+            )
         elif mode == "out-of-process":
             self._client = VerifierClient(transport=transport, timeout_ms=timeout_ms)
         # "auto" is resolved lazily on first verify()
@@ -260,7 +335,7 @@ class Verifier:
         """Resolve 'auto' mode by probing for a running server."""
         if self._mode != "auto":
             return
-        
+
         client = VerifierClient(transport=self._transport, timeout_ms=1000)
         loop = self._get_loop()
         try:
@@ -270,14 +345,36 @@ class Verifier:
             self._mode = "out-of-process"
         except (TransportError, Exception):
             # No server running — fall back to in-process
-            self._server = VerifierServer(rules=self._rules)
+            if self._require_oop:
+                raise RuntimeError(
+                    "Out-of-process verifier server not found and require_oop=True. "
+                    "Refusing to fall back to in-process verification. "
+                    "Start a verifier server or set require_oop=False."
+                )
+            warnings.warn(
+                "CCS Verifier: No out-of-process server found, falling back to "
+                "in-process verification. In-process mode provides weaker security "
+                "as the verifier shares the agent's process space. "
+                "For production use, start a verifier server: "
+                "python -m ccs_verifier.server",
+                SecurityWarning,
+                stacklevel=3,
+            )
+            logger.warning(
+                "Auto mode: out-of-process server not available, "
+                "falling back to in-process verification (weaker security)"
+            )
+            self._server = VerifierServer(
+                rules=self._rules,
+                l1_signing_key=self._l1_signing_key,
+            )
             self._oop_available = False
             self._mode = "in-process"
 
     def verify(self, command: Command) -> VerificationResult:
         """
         Verify a command synchronously.
-        
+
         In auto mode, first call will probe for a running verifier server.
         If found, uses out-of-process verification (strongest isolation).
         If not found, falls back to in-process verification.
@@ -328,7 +425,21 @@ class Verifier:
 
     @property
     def signing_key(self) -> bytes:
-        """Access the signing key (in-process only)."""
+        """Access the L0 HMAC signing key (in-process only)."""
         if self._server:
             return self._server._signing_key
         raise RuntimeError("Signing key not available in out-of-process mode")
+
+    @property
+    def l1_enabled(self) -> bool:
+        """Whether L1 Ed25519 receipt mode is enabled."""
+        if self._server:
+            return self._server.l1_enabled
+        return False
+
+    @property
+    def l1_public_key(self) -> Optional[bytes]:
+        """L1 Ed25519 public key (in-process only)."""
+        if self._server:
+            return self._server.l1_public_key
+        return None
