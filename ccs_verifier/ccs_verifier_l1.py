@@ -12,7 +12,7 @@ Field structure (29 fields):
   Runtime context: runtime_context_hash, config_hash
   Verifier identity: verifier_source_class, deployment_mode, issuer
   Audience & nonce: audience, nonce
-  Sequence & bounds: sequence, issuance_bound, expiry_bound, clock_skew_bound
+  Sequence & bounds: sequence, issued_at, expires_at, max_clock_skew
   Action (CAID-compatible): action
   Signature: signature (Ed25519), signing_algorithm, public_key_fingerprint
   Metadata: verified_at, latency_us
@@ -43,8 +43,22 @@ v1.1.5 fixes (per Iman Schrock re-audit Round 2):
   - Added `_check_duplicate_keys()` for RFC 8785 unique key enforcement
   - pyproject.toml: added `jcs>=0.2` as core dependency
 
-Backward compatibility: L0 HMAC-SHA256 receipts continue to work via
-sign_receipt() in protocol.py. L1 is opt-in via VerifierServer(l1_signing_key=...).
+v1.1.6 fixes:
+  - Full integration test suite (3 end-to-end tests)
+  - Builder validation for required profile bindings
+  - Conformance test vectors (l1-001 through l1-005)
+
+v1.1.7 fixes (per Iman Schrock external reproduction findings):
+  - FIELD RENAME (spec alignment per draft-correctover-ccs-02 §5.9 / Appendix A):
+    - issuance_bound → issued_at (float, Level 1, signed)
+    - expiry_bound → expires_at (float, Level 1, signed)
+    - clock_skew_bound → max_clock_skew (float, Level 1, signed)
+  - BACKWARD COMPATIBILITY: from_dict() accepts old field names and maps them
+    to new names. Old receipts can be deserialized and fields read, but signature
+    verification will fail (expected: signed payload content changed).
+  - TIME VALIDATION: build() now validates timestamp >= issued_at
+  - REPRODUCTION MATERIAL: includes original bytes (raw dicts) for all hash
+    computations so external verifiers can independently recompute hashes
 """
 
 from __future__ import annotations
@@ -87,6 +101,14 @@ _MIN_SAFE_INTEGER = -(1 << 53) + 1
 
 # Known receipt fields (for strict deserialization)
 _KNOWN_FIELDS: frozenset[str] = frozenset()  # populated after class definition
+
+# Old field name → new field name mapping (v1.1.6 → v1.1.7)
+# Per draft-correctover-ccs-02 §5.9 and Appendix A Field 19-21
+_OLD_FIELD_MAP: dict[str, str] = {
+    "issuance_bound": "issued_at",
+    "expiry_bound": "expires_at",
+    "clock_skew_bound": "max_clock_skew",
+}
 
 
 def _require_ed25519():
@@ -196,6 +218,11 @@ class L1Receipt:
     29 fields providing full attestation of the verification event,
     compatible with the CAID (Chain of Attestation for Inference & Deployment)
     specification.
+
+    Field naming follows draft-correctover-ccs-02 §5.9 / Appendix A:
+      - issued_at: Issue timestamp (was issuance_bound in v1.1.6)
+      - expires_at: Expiry timestamp (was expiry_bound in v1.1.6)
+      - max_clock_skew: Clock tolerance in seconds (was clock_skew_bound in v1.1.6)
     """
     # Core identity (4)
     trace_id: str
@@ -230,11 +257,11 @@ class L1Receipt:
     audience: str = ""
     nonce: str = field(default_factory=lambda: secrets.token_hex(16))
 
-    # Sequence & time bounds (4)
+    # Sequence & time bounds (4) — renamed per draft-correctover-ccs-02
     sequence: int = 0
-    issuance_bound: float = 0.0
-    expiry_bound: float = 0.0
-    clock_skew_bound: float = 0.0
+    issued_at: float = 0.0
+    expires_at: float = 0.0
+    max_clock_skew: float = 0.0
 
     # CAID-compatible action (1)
     action: str = ""
@@ -255,7 +282,7 @@ class L1Receipt:
         return self.verdict == "allow"
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert receipt to dict (excludes signature fields for signing)."""
+        """Convert receipt to dict (uses new field names only)."""
         return asdict(self)
 
     def signing_payload(self) -> bytes:
@@ -345,6 +372,13 @@ class L1Receipt:
         """
         Reconstruct an L1Receipt from a dict (e.g., from JSON).
 
+        BACKWARD COMPATIBILITY (v1.1.7): Accepts old field names from v1.1.6:
+          - issuance_bound → issued_at
+          - expiry_bound → expires_at
+          - clock_skew_bound → max_clock_skew
+        Old receipts can be deserialized and fields read, but signature
+        verification will FAIL because the signed payload content has changed.
+
         Args:
             data: Dictionary of receipt fields.
             strict: If True (default), reject unknown fields, validate
@@ -361,9 +395,19 @@ class L1Receipt:
         if not isinstance(data, dict):
             raise ValueError("from_dict requires a dict")
 
+        # --- Backward compatibility: remap old field names to new names ---
+        remapped = dict(data)
+        old_fields_used = []
+        for old_name, new_name in _OLD_FIELD_MAP.items():
+            if old_name in remapped:
+                old_fields_used.append(old_name)
+                if new_name not in remapped:
+                    remapped[new_name] = remapped[old_name]
+                del remapped[old_name]
+
         field_names = {f.name for f in cls.__dataclass_fields__.values()}
         if strict:
-            unknown = set(data.keys()) - field_names
+            unknown = set(remapped.keys()) - field_names
             if unknown:
                 raise ValueError(
                     f"Unknown fields in L1Receipt: {sorted(unknown)}. "
@@ -371,8 +415,8 @@ class L1Receipt:
                 )
 
             # Validate receipt_version
-            if 'receipt_version' in data:
-                rv = data['receipt_version']
+            if 'receipt_version' in remapped:
+                rv = remapped['receipt_version']
                 if rv != RECEIPT_VERSION:
                     raise ValueError(
                         f"Unsupported receipt_version: '{rv}'. "
@@ -380,7 +424,7 @@ class L1Receipt:
                         f"Refusing to deserialize incompatible receipt."
                     )
 
-        filtered = {k: v for k, v in data.items() if k in field_names}
+        filtered = {k: v for k, v in remapped.items() if k in field_names}
 
         # --- Input validation: reject None, empty critical fields, oversized ---
         _MAX_FIELD_LEN = 4096
@@ -659,13 +703,14 @@ class L1ReceiptBuilder:
 
     Enforces required profile bindings before signing:
     - issuer, audience, action must be non-empty
-    - expiry_bound must be > 0 for signed receipts
+    - expires_at must be > 0 for signed receipts
+    - timestamp must be >= issued_at
 
     Usage:
         builder = L1ReceiptBuilder(trace_id="abc123", verdict=Verdict.ALLOW)
         builder.tool("shell").params_hash(params_hash).rule_summary(summary)
         builder.issuer("verifier-1").audience("agent-1").action("ccs.verify")
-        builder.time_bounds(expiry=time.time() + 300)
+        builder.time_bounds(issued_at=time.time(), expires_at=time.time() + 300)
         receipt = builder.build(private_key_seed)
     """
 
@@ -739,13 +784,20 @@ class L1ReceiptBuilder:
 
     def time_bounds(
         self,
-        issuance: float = 0.0,
+        issued_at: float = 0.0,
         expiry: float = 0.0,
         clock_skew: float = 0.0,
     ) -> "L1ReceiptBuilder":
-        self._receipt.issuance_bound = issuance
-        self._receipt.expiry_bound = expiry
-        self._receipt.clock_skew_bound = clock_skew
+        """Set time bounds per draft-correctover-ccs-02 §5.9.
+
+        Args:
+            issued_at: Issue timestamp (maps to receipt.issued_at).
+            expiry: Expiry timestamp (maps to receipt.expires_at).
+            clock_skew: Clock tolerance in seconds (maps to receipt.max_clock_skew).
+        """
+        self._receipt.issued_at = issued_at
+        self._receipt.expires_at = expiry
+        self._receipt.max_clock_skew = clock_skew
         return self
 
     def action(self, action: str) -> "L1ReceiptBuilder":
@@ -765,7 +817,8 @@ class L1ReceiptBuilder:
         - issuer must be non-empty
         - audience must be non-empty
         - action must be non-empty
-        - expiry_bound must be > 0
+        - expires_at must be > 0
+        - timestamp must be >= issued_at (time consistency)
 
         Args:
             private_key_seed: If provided, signs the receipt with Ed25519.
@@ -775,6 +828,7 @@ class L1ReceiptBuilder:
 
         Raises:
             ValueError: If signing with incomplete profile bindings.
+            ValueError: If timestamp < issued_at (time consistency violation).
         """
         receipt = self._receipt
 
@@ -789,8 +843,8 @@ class L1ReceiptBuilder:
                 missing.append("audience")
             if not receipt.action:
                 missing.append("action")
-            if receipt.expiry_bound <= 0:
-                missing.append("expiry_bound (must be > 0)")
+            if receipt.expires_at <= 0:
+                missing.append("expires_at (must be > 0)")
 
             if missing:
                 raise ValueError(
@@ -799,5 +853,22 @@ class L1ReceiptBuilder:
                     f"An unsigned or empty-binding receipt provides no security guarantee."
                 )
 
+            # Validate time consistency: timestamp must not precede issuance
+            if receipt.issued_at > 0 and receipt.timestamp < receipt.issued_at:
+                raise ValueError(
+                    f"Time consistency violation: timestamp ({receipt.timestamp}) "
+                    f"is earlier than issued_at ({receipt.issued_at}). "
+                    f"A receipt cannot claim verification before it was issued."
+                )
+
             receipt = sign_l1_receipt(receipt, private_key_seed)
+        else:
+            # Even for unsigned receipts, validate time consistency if both are set
+            if receipt.issued_at > 0 and receipt.timestamp < receipt.issued_at:
+                raise ValueError(
+                    f"Time consistency violation: timestamp ({receipt.timestamp}) "
+                    f"is earlier than issued_at ({receipt.issued_at}). "
+                    f"A receipt cannot claim verification before it was issued."
+                )
+
         return receipt
