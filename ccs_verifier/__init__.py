@@ -1,5 +1,5 @@
 """
-CCS Runtime Verifier — Reference Implementation (v1.1.2)
+CCS Runtime Verifier — Reference Implementation (v1.1.8)
 
 Out-of-process runtime verification for AI agent commands.
 Protocol specification: https://doi.org/10.5281/zenodo.21234580
