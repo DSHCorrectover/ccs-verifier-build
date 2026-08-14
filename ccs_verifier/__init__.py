@@ -1,5 +1,5 @@
 """
-CCS Runtime Verifier — Reference Implementation (v1.1.9)
+CCS Runtime Verifier — Reference Implementation (v1.1.10)
 
 Out-of-process runtime verification for AI agent commands.
 Protocol specification: https://doi.org/10.5281/zenodo.21234580
@@ -56,7 +56,7 @@ from ccs_verifier.ccs_verifier_l1 import (
     canonical_json,
 )
 
-__version__ = "1.1.9"
+__version__ = "1.1.10"
 __all__ = [
     # Protocol (L0)
     "Command",
