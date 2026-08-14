@@ -23,7 +23,7 @@ from typing import Optional, Sequence
 logger = logging.getLogger("ccs_verifier.client")
 
 from ccs_verifier.protocol import (
-    Command, VerificationResult, Verdict, Rule, RuleResult
+    Command, VerificationResult, Verdict, Rule, RuleResult, SecurityWarning
 )
 from ccs_verifier.ccs_verifier_l1 import L1Receipt
 from ccs_verifier.transport.base import Transport, MessageFrame, TransportError

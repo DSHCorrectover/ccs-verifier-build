@@ -16,6 +16,11 @@ from enum import Enum
 from typing import Any, Protocol, runtime_checkable
 
 
+class SecurityWarning(UserWarning):
+    """Warning raised when verification falls back to a weaker security mode."""
+    pass
+
+
 class Verdict(Enum):
     ALLOW = "allow"
     DENY = "deny"
