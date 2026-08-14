@@ -56,7 +56,7 @@ from ccs_verifier.ccs_verifier_l1 import (
     canonical_json,
 )
 
-__version__ = "1.1.6"
+__version__ = "1.1.7"
 __all__ = [
     # Protocol (L0)
     "Command",

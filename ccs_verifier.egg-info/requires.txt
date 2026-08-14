@@ -1,9 +1,0 @@
-jcs>=0.2
-
-[dev]
-cryptography>=41.0
-pytest>=7.0
-pytest-asyncio>=0.21
-
-[l1]
-cryptography>=41.0

@@ -1,0 +1,49 @@
+{
+  "version": "1.1.7",
+  "timestamp": 1786634581.3982773,
+  "command": {
+    "agent_id": "agent-test-001",
+    "tool": "shell_exec",
+    "params": {
+      "command": "echo hello"
+    },
+    "timestamp": 1786634581.397041,
+    "trace_id": "trace-canonical-001"
+  },
+  "result": {
+    "verdict": "allow",
+    "verified_at": 1786634581.3974783,
+    "block_reason": ""
+  },
+  "l1_receipt": {
+    "trace_id": "trace-canonical-001",
+    "receipt_version": "1.1",
+    "verdict": "allow",
+    "timestamp": 1786634581.397541,
+    "tool": "shell_exec",
+    "tool_call_id": "",
+    "params_hash": "827b867e0b5a01dc",
+    "args_digest": "827b867e0b5a01dcb19514626d1a3146bf8258df041fe9ad35506a84e1dc0bc5",
+    "rule_summary": "ssrf_protection=allow",
+    "rule_version": "1.1.7",
+    "request_hash": "5cbeeed1f59064251ab935c520e2bace777d939ecc3fecf6342c8a17a791a821",
+    "response_hash": "4ea8c2608eac5aeed8772e2e012cb93ebb9664e0a107a0175fd741a9dcbb67f6",
+    "runtime_context_hash": "ef5bb2f6c474fbb56401eb2b9a1d771217e81b65d540d9ccf3ff95ed69d3ca94",
+    "config_hash": "a9ecb06c5f7797021899f3fd7e6d83b3fdfa28336901f9d411ae7e847fb7feee",
+    "verifier_source_class": "ccs_verifier.server.VerifierServer",
+    "deployment_mode": "in-process",
+    "issuer": "ccs-verifier",
+    "audience": "agent-test-001",
+    "nonce": "trace-canonical-",
+    "sequence": 1,
+    "issued_at": 1786634576.3974783,
+    "expires_at": 1786634881.3974783,
+    "max_clock_skew": 5.0,
+    "action": "ccs.verify.allow",
+    "signature": "MEElwe5aeKMtR6wx2A2NUFdfzgqeJlTlXjlWtY79plgKNJQsFb7Xhc2/BCx3bMkypuqrgho93UX2RKEjXORJCQ==",
+    "signing_algorithm": "Ed25519",
+    "public_key_fingerprint": "ad989eaf1bb89fa8",
+    "verified_at": 1786634581.397551,
+    "latency_us": 12.80899959965609
+  }
+}
