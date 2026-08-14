@@ -126,7 +126,7 @@ The `Verifier` class **auto-detects** whether an out-of-process server is runnin
 
 L1 receipts include `rule_version`, `tool_call_id`, and `args_digest` bindings that enable decision causality verification and anti-silent-drop guarantees.
 
-**154 tests passing** — full conformance suite including all v1.1 vectors.
+**178 tests passing** — full conformance suite including all v1.1 vectors plus embedded-key trust-path verification.
 
 ## Dimension-Level Error Codes
 

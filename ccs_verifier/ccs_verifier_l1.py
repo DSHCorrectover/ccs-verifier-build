@@ -220,7 +220,7 @@ class L1Receipt:
     """
     Level-1 verification receipt with Ed25519 signature.
 
-    29 fields providing full attestation of the verification event,
+    30 fields providing full attestation of the verification event,
     compatible with the CAID (Chain of Attestation for Inference & Deployment)
     specification.
 

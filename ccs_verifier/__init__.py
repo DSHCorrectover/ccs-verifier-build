@@ -6,7 +6,7 @@ Protocol specification: https://doi.org/10.5281/zenodo.21234580
 
 Receipt levels:
 - L0: HMAC-SHA256 receipt (6 fields, backward compatible)
-- L1: Ed25519 signed receipt (29 fields, CAID-compatible)
+- L1: Ed25519 signed receipt (30 fields, CAID-compatible)
 
 Transport options:
 - Unix domain socket (default, lowest latency)
@@ -56,7 +56,7 @@ from ccs_verifier.ccs_verifier_l1 import (
     canonical_json,
 )
 
-__version__ = "1.1.11"
+__version__ = "1.1.12"
 __all__ = [
     # Protocol (L0)
     "Command",

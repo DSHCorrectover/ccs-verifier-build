@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ccs-verifier"
-version = "1.1.11"
+version = "1.1.12"
 description = "CCS Runtime Verifier — Out-of-process verification for AI agent commands"
 readme = "README.md"
 license = {text = "Proprietary Commercial License"}
@@ -34,3 +34,6 @@ ccs-verifier = "ccs_verifier.__main__:main"
 
 [tool.setuptools.packages.find]
 include = ["ccs_verifier*"]
+
+[tool.setuptools.package-data]
+ccs_verifier = ["reference_issuer.json"]

@@ -9,7 +9,7 @@ and crash domain. A segfault in the agent does not corrupt the audit log.
 
 Receipt levels:
 - L0 (default): HMAC-SHA256 receipt with 6 covered fields
-- L1: Ed25519 signed receipt with 29 fields (CAID-compatible)
+- L1: Ed25519 signed receipt with 30 fields (CAID-compatible)
 
 Transport: Unix domain socket (default) or TCP. Protocol: length-prefixed JSON.
 """
