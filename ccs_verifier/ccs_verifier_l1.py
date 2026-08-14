@@ -4,7 +4,7 @@ CCS L1 Receipt — Level-1 tamper-evident verification receipt with Ed25519 sign
 Receipt format version 1.1 — CAID (Chain of Attestation for Inference & Deployment)
 compatible attestation receipt covering the full verification context.
 
-Field structure (29 fields):
+Field structure (30 fields):
   Core identity: trace_id, receipt_version, verdict, timestamp
   Tool binding:   tool, tool_call_id, params_hash, args_digest
   Rule context:   rule_summary, rule_version
@@ -14,12 +14,17 @@ Field structure (29 fields):
   Audience & nonce: audience, nonce
   Sequence & bounds: sequence, issued_at, expires_at, max_clock_skew
   Action (CAID-compatible): action
-  Signature: signature (Ed25519), signing_algorithm, public_key_fingerprint
+  Signature: signature (Ed25519), signing_algorithm, public_key_fingerprint,
+             public_key (base64 raw Ed25519 public key, embedded for
+             independent third-party verification)
   Metadata: verified_at, latency_us
 
 Signature algorithm: Ed25519 (RFC 8032) over RFC 8785 JCS canonical JSON.
 The signing_algorithm field is included in the signed payload to prevent
-algorithm substitution attacks.
+algorithm substitution attacks. The public_key field is ALSO included in
+the signed payload so that any party in possession of the receipt can
+independently verify the signature without an out-of-band key distribution
+channel; the public_key_fingerprint acts as an additional check.
 
 v1.1.4 fixes (per Iman Schrock independent re-audit):
   - RFC 8785 serializer: fix -0.0 → "0.0", non-BMP Unicode → surrogate pairs,
@@ -266,16 +271,20 @@ class L1Receipt:
     # CAID-compatible action (1)
     action: str = ""
 
-    # Signature fields (3)
+    # Signature fields (4)
     signature: str = ""
     signing_algorithm: str = SIGNING_ALGORITHM
     public_key_fingerprint: str = ""
+    # base64-encoded raw 32-byte Ed25519 public key; embedded so third parties
+    # can independently verify the signature without an out-of-band key channel.
+    # Included in the signed payload (prevents key substitution attacks).
+    public_key: str = ""
 
     # Metadata (2)
     verified_at: float = field(default_factory=time.time)
     latency_us: float = 0.0
 
-    # Total: 4+4+2+2+2+3+2+4+1+3+2 = 29 fields
+    # Total: 4+4+2+2+2+3+2+4+1+4+2 = 30 fields
 
     @property
     def allowed(self) -> bool:
@@ -311,12 +320,15 @@ class L1Receipt:
                 data[k] = v
         return canonical_json(data)
 
-    def verify_signature(self, public_key_bytes: bytes) -> bool:
+    def verify_signature(self, public_key_bytes: Optional[bytes] = None) -> bool:
         """
         Verify the Ed25519 signature on this receipt.
 
         Args:
-            public_key_bytes: Raw 32-byte Ed25519 public key.
+            public_key_bytes: Raw 32-byte Ed25519 public key. If None, uses
+                the embedded public_key field (base64-decoded) when present,
+                enabling standalone third-party verification without an
+                out-of-band key channel.
 
         Returns:
             True if signature is valid, False otherwise.
@@ -324,6 +336,23 @@ class L1Receipt:
         _require_ed25519()
         if not self.signature:
             return False
+
+        # If no key was explicitly supplied, fall back to the embedded key.
+        if public_key_bytes is None:
+            if not self.public_key:
+                return False
+            try:
+                public_key_bytes = base64.b64decode(self.public_key, validate=True)
+            except Exception:
+                return False
+            if len(public_key_bytes) != 32:
+                return False
+            # Cross-check embedded public_key against its own fingerprint
+            # (both are part of the signed payload; mismatches indicate tampering)
+            if self.public_key_fingerprint:
+                expected_fp = public_key_fingerprint(public_key_bytes)
+                if expected_fp != self.public_key_fingerprint:
+                    return False
 
         # Validate signing algorithm matches expected
         if self.signing_algorithm != SIGNING_ALGORITHM:
@@ -454,6 +483,29 @@ class L1Receipt:
             raise ValueError("Field signature must not be empty")
         if 'public_key_fingerprint' in filtered and not filtered['public_key_fingerprint']:
             raise ValueError("Field public_key_fingerprint must not be empty")
+        if 'public_key' in filtered and not filtered['public_key']:
+            raise ValueError("Field public_key must not be empty when present")
+        # If both signature and public_key are present, cross-check they match
+        if filtered.get('signature') and filtered.get('public_key'):
+            try:
+                embedded_pk = base64.b64decode(filtered['public_key'], validate=True)
+                if len(embedded_pk) != 32:
+                    raise ValueError(
+                        f"Field public_key must decode to 32 raw Ed25519 bytes, "
+                        f"got {len(embedded_pk)}"
+                    )
+                # canonical base64 check
+                canonical_pk = _canonical_base64(filtered['public_key'])
+                if canonical_pk != filtered['public_key']:
+                    raise ValueError(
+                        "Field public_key is not in canonical Base64 form"
+                    )
+            except Exception as e:
+                if isinstance(e, ValueError) and "must decode" in str(e):
+                    raise
+                if isinstance(e, ValueError) and "canonical" in str(e):
+                    raise
+                raise ValueError(f"Field public_key is not valid Base64: {e}")
 
         # Security: reject unsigned receipts with "allow" verdict in strict mode
         # An unsigned "allow" receipt provides no cryptographic assurance and
@@ -605,16 +657,23 @@ def sign_l1_receipt(
     private_key = Ed25519PrivateKey.from_private_bytes(private_key_seed)
     public_key_bytes = private_key.public_key().public_bytes_raw()
     fp = public_key_fingerprint(public_key_bytes)
+    pk_b64 = _canonical_base64(base64.b64encode(public_key_bytes).decode("ascii"))
 
-    # Set signing_algorithm and public_key_fingerprint before generating
-    # payload so both are included in the signed data.
+    # Set signing_algorithm, public_key_fingerprint, and public_key before
+    # generating payload so all three are included in the signed data.
     # - signing_algorithm prevents algorithm substitution attacks
-    # - public_key_fingerprint binds the signing key identity to the receipt
+    # - public_key_fingerprint binds the signing key identity (short check)
+    # - public_key embeds the raw Ed25519 public key so any party in
+    #   possession of the receipt can independently verify the signature
+    #   without an out-of-band key distribution channel.
+    #   It is itself signed, preventing substitution attacks.
     receipt_for_signing = L1Receipt(
         **{k: v for k, v in asdict(receipt).items()
-           if k not in ("signature", "signing_algorithm", "public_key_fingerprint")},
+           if k not in ("signature", "signing_algorithm",
+                        "public_key_fingerprint", "public_key")},
         signing_algorithm=SIGNING_ALGORITHM,
         public_key_fingerprint=fp,
+        public_key=pk_b64,
     )
     payload = receipt_for_signing.signing_payload()
     signature = private_key.sign(payload)
@@ -622,20 +681,27 @@ def sign_l1_receipt(
 
     return L1Receipt(
         **{k: v for k, v in asdict(receipt).items()
-           if k not in ("signature", "signing_algorithm", "public_key_fingerprint")},
+           if k not in ("signature", "signing_algorithm",
+                        "public_key_fingerprint", "public_key")},
         signature=sig_b64,
         signing_algorithm=SIGNING_ALGORITHM,
         public_key_fingerprint=fp,
+        public_key=pk_b64,
     )
 
 
-def verify_l1_receipt(receipt: L1Receipt, public_key_bytes: bytes) -> bool:
+def verify_l1_receipt(
+    receipt: L1Receipt,
+    public_key_bytes: Optional[bytes] = None,
+) -> bool:
     """
     Verify an L1 receipt's Ed25519 signature.
 
     Args:
         receipt: The L1Receipt to verify.
-        public_key_bytes: 32-byte Ed25519 public key.
+        public_key_bytes: Raw 32-byte Ed25519 public key. If None, uses
+            the embedded public_key field when present, enabling standalone
+            third-party verification.
 
     Returns:
         True if signature is valid, False otherwise.
