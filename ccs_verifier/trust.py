@@ -38,6 +38,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import time
 from dataclasses import dataclass
 from typing import Optional
 
@@ -103,23 +104,45 @@ class TrustDecision:
         return self.accepted
 
 
-def evaluate_trust(receipt, anchors) -> TrustDecision:
+def evaluate_trust(receipt, anchors, *, now: Optional[float] = None) -> TrustDecision:
     """
     Evaluate a receipt against a set of trusted anchors.
 
     Args:
       receipt: A L1Receipt (or object with .issuer, .public_key,
-               .public_key_fingerprint and .verify_signature()).
+               .public_key_fingerprint, .expires_at, .max_clock_skew,
+               and .verify_signature()).
       anchors: Iterable of TrustAnchor. The first anchor whose issuer
                matches receipt.issuer is used for the pin check.
+      now:     Current wall-clock time (float, Unix epoch seconds).
+               Defaults to time.time(). Injectable for testing.
 
     Returns:
       TrustDecision. Caller MUST gate enforcement on .accepted.
+
+    Checks performed:
+      1. Cryptographic signature verification (self-consistency).
+      2. Issuer-to-anchor pin match (public key fingerprint + raw bytes).
+      3. Expiry window: receipt.expires_at must be > now - max_clock_skew.
     """
+    current = now if now is not None else time.time()
+
     # Stage 1: cryptographic self-consistency (uses embedded key).
     if not receipt.verify_signature():
         return TrustDecision(verified=False, accepted=False,
                              reason="signature_failed")
+
+    # Stage 1.5: expiry check — a correctly signed but expired receipt
+    # is cryptographically valid but temporally invalid and MUST NOT be
+    # accepted for enforcement.
+    if getattr(receipt, "expires_at", 0) > 0:
+        skew = getattr(receipt, "max_clock_skew", 0) or 0
+        if current > receipt.expires_at + skew:
+            return TrustDecision(
+                verified=True, accepted=False,
+                reason=f"receipt_expired:expires_at={receipt.expires_at}:"
+                       f"now={current}:skew={skew}",
+            )
 
     # Stage 2: bind the signing key to a trusted issuer anchor.
     pinned = None

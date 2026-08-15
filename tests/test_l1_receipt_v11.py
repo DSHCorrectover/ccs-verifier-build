@@ -339,7 +339,7 @@ class TestReferenceVector:
         b.params_hash("refvec001")
         b.args_digest({"command": "echo reference"})
         b.rule_summary("reference_vector")
-        b.rule_version("1.1.13")
+        b.rule_version("1.1.14")
         b.request_hash({"ref": 1})
         b.response_hash({"ok": True})
         b.runtime_context({"dist": "reference"})
@@ -350,15 +350,14 @@ class TestReferenceVector:
         b.audience("public")
         b.nonce("reference-nonce-001")
         b.sequence(0)
-        # Fixed epoch: 2026-08-15T00:00:00Z
-        ts = 1755201600.0
-        b.time_bounds(issued_at=ts, expiry=ts + 300)
+        # Fixed epoch: 2030-01-01T00:00:00Z (far-future to avoid expiry)
+        ts = 1893456000.0
         b.action("shell.execute")
         b.latency_us(0)
         r = b.build()
-        # Force timestamp and verified_at to fixed values for full
-        # reproducibility; sign_l1_receipt copies them into the signed
-        # payload so the output is byte-identical across builds.
+        r.issued_at = ts
+        r.expires_at = ts + 300
+        r.max_clock_skew = 0.0
         r.timestamp = ts
         r.verified_at = ts
         r = sign_l1_receipt(r, seed)

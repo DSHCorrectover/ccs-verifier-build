@@ -1,8 +1,9 @@
 <p align="center">
   <a href="https://pypi.org/project/ccs-verifier/"><img src="https://img.shields.io/pypi/v/ccs-verifier?label=PyPI&logo=pypi&logoColor=white&color=blue" alt="PyPI"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/pypi/pyversions/ccs-verifier?logo=python&logoColor=white" alt="Python 3.10+"></a>
-  <a href="https://github.com/Correctover/ccs-verifier/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Correctover/ccs-verifier?color=orange" alt="License"></a>
-  <a href="https://github.com/Correctover/ccs-verifier/actions"><img src="https://img.shields.io/github/actions/workflow/status/Correctover/ccs-verifier/ci.yml?label=Build&logo=github" alt="Build Status"></a>
+  <a href="https://codeberg.org/correctover-labs/ccs-verifier/src/branch/main/LICENSE"><img src="https://img.shields.io/badge/License-Proprietary-orange" alt="License"></a>
+  <a href="https://codeberg.org/correctover-labs/ccs-verifier"><img src="https://img.shields.io/badge/Source-Codeberg-blue?logo=forgejo" alt="Source on Codeberg"></a>
+  <a href="https://www.npmjs.com/package/ccs-runtime"><img src="https://img.shields.io/npm/v/ccs-runtime?label=npm&logo=npm" alt="npm"></a>
   <a href="https://doi.org/10.5281/zenodo.21915312"><img src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21915312-blue" alt="DOI"></a>
 </p>
 
@@ -84,7 +85,7 @@ CCS Verifier includes a 5-layer MCP ecosystem vulnerability scanner. The followi
 | 4 | `tool_poisoning` | Hidden instruction injection in MCP tool descriptions targeting LLM consumers |
 | 5 | `rug_pull` | Dynamic behavior change / post-approval mutation in MCP tool definitions |
 
-**Responsible disclosure**: If you discover a bypass or vulnerability, please open a [GitHub Security Advisory](https://github.com/Correctover/ccs-verifier/security/advisories/new) or contact the maintainers directly. We follow coordinated disclosure practices.
+**Responsible disclosure**: If you discover a bypass or vulnerability, please open an issue on [Codeberg](https://codeberg.org/correctover-labs/ccs-verifier/issues) or contact the maintainers at wangguigui@correctover.com. We follow coordinated disclosure practices.
 
 ## Specification & Standards
 
