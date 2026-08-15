@@ -122,11 +122,13 @@ The `Verifier` class **auto-detects** whether an out-of-process server is runnin
 | Level | Signature | Fields | Use Case |
 |-------|-----------|--------|----------|
 | **L0** | HMAC-SHA256 | 6 | Fast in-process verification, shared-secret audit trail |
-| **L1** | Ed25519 | 29 | Third-party verifiable receipts, CAID-compatible evidence chain |
+| **L1** | Ed25519 | 30 | Third-party verifiable receipts, CAID-compatible evidence chain |
 
 L1 receipts include `rule_version`, `tool_call_id`, and `args_digest` bindings that enable decision causality verification and anti-silent-drop guarantees.
 
-**178 tests passing** — full conformance suite including all v1.1 vectors plus embedded-key trust-path verification.
+A two-stage **VERIFIED vs ACCEPTED** trust model separates cryptographic self-consistency (anyone can verify a self-signed receipt) from issuer authentication (the relying party pins a public key or fingerprint before treating a receipt as trusted). The package ships a deterministic, public test-only reference key (`ccs-verifier/reference`, fingerprint `889d3f5bd86f5ff2`) used by the bundled reference-signed vector; deployments MUST generate and pin their own key.
+
+**153 tests passing** — L1 receipt, trust model, MCP scanner, built-in rules, integration, and a reference-signed canonical vector reproducible from source.
 
 ## Dimension-Level Error Codes
 

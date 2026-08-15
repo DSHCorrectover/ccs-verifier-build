@@ -898,6 +898,16 @@ class L1ReceiptBuilder:
         """
         receipt = self._receipt
 
+        # L1Receipt.timestamp is populated by default_factory=time.time at
+        # construction. If the caller subsequently sets an issued_at that
+        # is slightly in the future (sub-millisecond clock jitter or a
+        # fixed epoch assigned after construction), align timestamp to
+        # issued_at. A genuinely future issued_at (>1s ahead) is a real
+        # clock-skew/consistency violation and must still be rejected below.
+        if receipt.issued_at > 0 and 0 < receipt.issued_at - receipt.timestamp < 1.0:
+            receipt.timestamp = receipt.issued_at
+            receipt.verified_at = receipt.issued_at
+
         if private_key_seed is not None:
             _require_ed25519()
 

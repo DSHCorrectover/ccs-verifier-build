@@ -57,15 +57,31 @@ class TrustAnchor:
         return base64.b64decode(self.public_key_raw_b64, validate=True)
 
 
+def _load_reference_doc() -> dict:
+    with open(REFERENCE_ISSUER_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
 def load_reference_anchor() -> TrustAnchor:
     """Load the reference-distribution trust anchor (NOT for production deployments)."""
-    with open(REFERENCE_ISSUER_FILE, "r", encoding="utf-8") as f:
-        doc = json.load(f)
+    doc = _load_reference_doc()
     return TrustAnchor(
         issuer=doc["issuer"],
         public_key_raw_b64=doc["public_key_raw_b64"],
         public_key_fingerprint_sha256_16=doc["public_key_fingerprint_sha256_16"],
     )
+
+
+def load_reference_private_seed() -> bytes:
+    """Load the deterministic test-only Ed25519 seed for canonical vectors.
+
+    This seed is PUBLIC (derived from SHA-256 of a fixed label and bundled
+    with the package). It exists solely so that auditors and CI can reproduce
+    the shipped reference-signed receipts byte-for-byte. It MUST NOT be used
+    to sign production receipts.
+    """
+    doc = _load_reference_doc()
+    return bytes.fromhex(doc["private_key_seed_hex"])
 
 
 @dataclass(frozen=True)

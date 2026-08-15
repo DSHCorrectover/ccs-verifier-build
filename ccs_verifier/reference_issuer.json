@@ -1,10 +1,12 @@
 {
   "issuer": "ccs-verifier/reference",
   "key_type": "Ed25519",
-  "public_key_raw_b64": "Q8qARJLWgSARP27LD39UvZxKiVlEz98iqUobB+FpvBs=",
-  "public_key_fingerprint_sha256_16": "1e412cbf6d71ca46",
-  "public_key_sha256_full": "1e412cbf6d71ca4649c5e3bb87aee87b72ef1fa6dab336dbc6a168165b41dbd9",
-  "key_purpose": "Reference issuer key for ccs-verifier package. Deployments MUST rotate and pin their own key; this key identifies upstream reference builds and bundled test vectors only. It is NOT a deployment trust root.",
+  "public_key_raw_b64": "v63J4PdpUTeDVUuGMgpayNc5ex/ufTmrW+9oKyybbCw=",
+  "public_key_fingerprint_sha256_16": "889d3f5bd86f5ff2",
+  "public_key_sha256_full": "889d3f5bd86f5ff201022db9b6dbef582ba2cd84d687f63b05141bd004b1d183",
+  "private_key_seed_hex": "61f8411a9852fc0175451deb6731d5bb9b5b002e20bfcca4c2f883129cb10fa8",
+  "key_purpose": "Deterministic test-only reference key for ccs-verifier canonical vectors and upstream build identification. This seed is PUBLIC and MUST NOT be used as a deployment trust root. Deployments MUST generate and pin their own Ed25519 key; do not trust receipts signed by this key outside the bundled test vectors.",
+  "seed_derivation": "SHA-256(b'ccs-verifier/reference-issuer/v1') — fully reproducible from source, no secret entropy.",
   "trust_model": "VERIFIED (signature valid) vs ACCEPTED (issuer identity trusted via pin/registry). Embedded-key self-verification yields VERIFIED. A relying party MUST additionally pin the public_key or public_key_fingerprint to a known issuer before treating a receipt as ACCEPTED.",
   "key_rotation_url": "https://pypi.org/project/ccs-verifier/",
   "published_at": "2026-08-15"

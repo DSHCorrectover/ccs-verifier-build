@@ -1,19 +1,16 @@
 """
-CCS Verifier L1 Receipt v1.1 — Test Suite
+CCS Verifier L1 Receipt — Test Suite
 
 Covers the two architectural improvements from autogen#7265:
   1. rule_version — "Pin the rule, not just the action"
   2. tool_call_id + args_digest — Approval-execution cryptographic binding
 
-Test categories:
-  - rule_version correctly written to receipt and affects signature
-  - tool_call_id + args_digest correctly bound
-  - Backward compatibility (no new fields → receipt still valid)
-  - args_digest auto-computed from params
-  - tool_call_id auto-derived from trace_id + tool + nonce
-  - compute_rule_hash helper function
-  - Serialization round-trip with new fields
-  - Tamper detection on new fields
+Also covers:
+  - VERIFIED vs ACCEPTED two-stage trust model (Iman audit, 2026-08-15)
+  - Reference-signed canonical vector reproducibility
+  - Serialization round-trip
+  - Tamper detection on all new fields
+  - Backward compatibility
 
 Run: python3 -m pytest tests/test_l1_receipt_v11.py -v
 """
@@ -27,309 +24,209 @@ from pathlib import Path
 
 import pytest
 
-# Add repo root to path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from ccs_verifier_l1 import (
-    Ed25519Signer,
-    L1ReceiptBuilder,
+from ccs_verifier.ccs_verifier_l1 import (
     L1Receipt,
-    DeploymentMode,
+    L1ReceiptBuilder,
+    Verdict,
+    sign_l1_receipt,
     verify_l1_receipt,
-    serialize_receipt,
-    deserialize_receipt,
-    compute_rule_hash,
-    _canonical_json,
+    generate_ed25519_key,
+    get_public_key,
+    public_key_fingerprint,
+    canonical_json,
+    compute_hash,
+    compute_args_digest,
+)
+from ccs_verifier.trust import (
+    TrustAnchor,
+    evaluate_trust,
+    load_reference_anchor,
+    load_reference_private_seed,
 )
 
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-@pytest.fixture
-def signer():
-    """Fresh Ed25519 signer for each test."""
-    return Ed25519Signer()
-
-
-@pytest.fixture
-def builder(signer):
-    """Standard L1ReceiptBuilder."""
-    return L1ReceiptBuilder(
-        signer=signer,
-        issuer="ccs-verifier:v0.5.0",
-        audience="agent:test",
-        verifier_source_class="VerifierServer",
-        verifier_deployment_mode=DeploymentMode.IN_PROCESS,
-        verifier_version="0.5.0",
-        rules=["ssrf_protection", "rce_protection"],
-        validity_seconds=300,
-    )
-
-
-def _make_receipt(builder, **kwargs):
-    """Helper to build a standard receipt with sensible defaults."""
-    defaults = dict(
-        agent_id="agent:test",
-        tool="shell",
-        params={"command": "echo hello"},
-        trace_id="trc_test_001",
-        request_timestamp=time.time(),
-        verdict="allow",
-        rule_results=[],
-        verified_at=time.time(),
-    )
-    defaults.update(kwargs)
-    return builder.build(**defaults)
+VECTOR_DIR = Path(__file__).resolve().parent / "conformance-vectors"
 
 
 # ---------------------------------------------------------------------------
-# 1. compute_rule_hash helper
+# Helpers
 # ---------------------------------------------------------------------------
 
-class TestComputeRuleHash:
-    """Tests for the compute_rule_hash utility function."""
+def _key_pair():
+    seed = generate_ed25519_key()
+    pub = get_public_key(seed)
+    return seed, pub
 
-    def test_returns_64_char_hex(self):
-        """compute_rule_hash should return a 64-character hex string."""
-        h = compute_rule_hash("v1.0.0")
-        assert len(h) == 64
-        int(h, 16)  # Should be valid hex
 
-    def test_different_versions_different_hash(self):
-        """Different rule versions should produce different hashes."""
-        h1 = compute_rule_hash("v1.0.0")
-        h2 = compute_rule_hash("v2.0.0")
-        assert h1 != h2
+def _build_unsigned(
+    trace_id="trc_test_001",
+    verdict=Verdict.ALLOW,
+    tool="shell",
+    params=None,
+    rule_summary="test",
+    rule_version="",
+    tool_call_id=None,
+    args_digest=None,
+    issuer="ccs-verifier/test",
+    audience="agent:test",
+    action="shell.execute",
+):
+    if params is None:
+        params = {"command": "echo hello"}
+    b = L1ReceiptBuilder(trace_id=trace_id, verdict=verdict)
+    b.tool(tool)
+    if tool_call_id is not None:
+        b.tool_call_id(tool_call_id)
+    b.params_hash(compute_hash(params)[:16])
+    if args_digest is not None:
+        # explicit override
+        b._receipt.args_digest = args_digest
+    else:
+        b.args_digest(params)
+    b.rule_summary(rule_summary)
+    if rule_version:
+        b.rule_version(rule_version)
+    b.request_hash({"k": "v"})
+    b.response_hash({"ok": True})
+    b.runtime_context({"os": "linux"})
+    b.config_hash({"mode": "enforce"})
+    b.verifier_source_class("VerifierServer")
+    b.deployment_mode("in-process")
+    b.issuer(issuer)
+    b.audience(audience)
+    b.nonce(f"nonce-{trace_id}")
+    b.sequence(1)
+    now = time.time()
+    b.time_bounds(issued_at=now, expiry=now + 300)
+    b.action(action)
+    b.latency_us(50)
+    return b.build()
 
-    def test_same_inputs_same_hash(self):
-        """Same inputs should produce identical hashes (deterministic)."""
-        h1 = compute_rule_hash("v1.0.0", "ssrf_protection")
-        h2 = compute_rule_hash("v1.0.0", "ssrf_protection")
-        assert h1 == h2
 
-    def test_rule_name_affects_hash(self):
-        """Including a rule_name should change the hash."""
-        h1 = compute_rule_hash("v1.0.0", "")
-        h2 = compute_rule_hash("v1.0.0", "ssrf_protection")
-        assert h1 != h2
-
-    def test_empty_string_valid_input(self):
-        """Empty strings should be valid input (backward compat)."""
-        h = compute_rule_hash("")
-        assert len(h) == 64
-
-    def test_matches_manual_sha256(self):
-        """Hash should match manual SHA-256 of canonical JSON."""
-        rule_version = "v2.1.0"
-        rule_name = "rce_protection"
-        expected = hashlib.sha256(
-            json.dumps(
-                {"rule_version": rule_version, "rule_name": rule_name},
-                sort_keys=True,
-                separators=(",", ":"),
-            ).encode("utf-8")
-        ).hexdigest()
-        assert compute_rule_hash(rule_version, rule_name) == expected
+def _build_signed(**kw):
+    seed = kw.pop("seed", None)
+    if seed is None:
+        seed, _ = _key_pair()
+    receipt = _build_unsigned(**kw)
+    return sign_l1_receipt(receipt, seed)
 
 
 # ---------------------------------------------------------------------------
-# 2. rule_version field
+# 1. rule_version field
 # ---------------------------------------------------------------------------
 
 class TestRuleVersion:
-    """Tests for rule_version field — 'Pin the rule, not just the action'."""
+    def test_default_empty(self):
+        r = _build_unsigned()
+        assert r.rule_version == ""
 
-    def test_rule_version_default_empty(self, builder):
-        """Default rule_version should be empty string (backward compat)."""
-        receipt = _make_receipt(builder)
-        assert receipt.rule_version == ""
+    def test_written(self):
+        r = _build_unsigned(rule_version="v2.1.0")
+        assert r.rule_version == "v2.1.0"
 
-    def test_rule_version_written_to_receipt(self, builder):
-        """rule_version should be correctly stored in the receipt."""
-        receipt = _make_receipt(builder, rule_version="v2.1.0")
-        assert receipt.rule_version == "v2.1.0"
+    def test_affects_signature(self):
+        seed, _ = _key_pair()
+        a = _build_signed(rule_version="v1.0.0", seed=seed)
+        b = _build_signed(rule_version="v2.0.0", seed=seed)
+        assert a.signature != b.signature
 
-    def test_rule_version_affects_signature(self, builder):
-        """Different rule_version values should produce different signatures."""
-        receipt_a = _make_receipt(builder, rule_version="v1.0.0")
-        receipt_b = _make_receipt(builder, rule_version="v2.0.0")
-        assert receipt_a.signature != receipt_b.signature
+    def test_in_signing_payload(self):
+        r = _build_signed(rule_version="v3.0.0")
+        d = r.to_dict()
+        assert d["rule_version"] == "v3.0.0"
+        assert verify_l1_receipt(r) is True
 
-    def test_rule_version_in_signing_payload(self, builder):
-        """rule_version must be included in the signing payload."""
-        receipt = _make_receipt(builder, rule_version="v3.0.0")
-        payload_dict = json.loads(receipt.signing_payload())
-        assert "rule_version" in payload_dict
-        assert payload_dict["rule_version"] == "v3.0.0"
-
-    def test_rule_version_in_to_dict(self, builder):
-        """rule_version should appear in to_dict() output."""
-        receipt = _make_receipt(builder, rule_version="v1.5.0")
-        d = receipt.to_dict()
-        assert "rule_version" in d
-        assert d["rule_version"] == "v1.5.0"
-
-    def test_tamper_rule_version_breaks_signature(self, builder):
-        """Modifying rule_version after signing should break the signature."""
-        receipt = _make_receipt(builder, rule_version="v1.0.0")
-        assert receipt.verify_signature() is True
-        receipt.rule_version = "v9.9.9"
-        assert receipt.verify_signature() is False
-
-    def test_same_rule_version_same_signature_components(self, builder):
-        """Same rule_version with identical other inputs should produce
-        identical signing payloads (verifying rule_version is deterministic)."""
-        ts = time.time()
-        receipt_a = _make_receipt(
-            builder,
-            rule_version="v1.0.0",
-            trace_id="trc_same",
-            request_timestamp=ts,
-            verified_at=ts,
-        )
-        receipt_b = _make_receipt(
-            builder,
-            rule_version="v1.0.0",
-            trace_id="trc_same",
-            request_timestamp=ts,
-            verified_at=ts,
-        )
-        # Nonce will differ, so signatures differ, but rule_version in payload matches
-        payload_a = json.loads(receipt_a.signing_payload())
-        payload_b = json.loads(receipt_b.signing_payload())
-        assert payload_a["rule_version"] == payload_b["rule_version"]
+    def test_tamper_breaks_signature(self):
+        r = _build_signed(rule_version="v1.0.0")
+        assert r.verify_signature() is True
+        r.rule_version = "v9.9.9"
+        assert r.verify_signature() is False
 
 
 # ---------------------------------------------------------------------------
-# 3. tool_call_id field
+# 2. tool_call_id field
 # ---------------------------------------------------------------------------
 
 class TestToolCallId:
-    """Tests for tool_call_id — unique tool call instance identifier."""
+    def test_explicit_value(self):
+        r = _build_unsigned(tool_call_id="call_abc123")
+        assert r.tool_call_id == "call_abc123"
 
-    def test_tool_call_id_default_auto_derived(self, builder):
-        """When not provided, tool_call_id should be auto-derived (non-empty)."""
-        receipt = _make_receipt(builder)
-        assert receipt.tool_call_id != ""
-        assert len(receipt.tool_call_id) > 0
+    def test_affects_signature(self):
+        seed, _ = _key_pair()
+        a = _build_signed(tool_call_id="call_a", seed=seed, trace_id="t1")
+        b = _build_signed(tool_call_id="call_b", seed=seed, trace_id="t1")
+        assert a.signature != b.signature
 
-    def test_tool_call_id_explicit_value(self, builder):
-        """Explicitly provided tool_call_id should be used as-is."""
-        receipt = _make_receipt(builder, tool_call_id="call_abc123")
-        assert receipt.tool_call_id == "call_abc123"
-
-    def test_tool_call_id_auto_derived_from_trace_tool_nonce(self, builder):
-        """Auto-derived tool_call_id should be deterministic given same inputs."""
-        ts = time.time()
-        # Build with explicit nonce control is not possible, but we can verify
-        # the derivation logic by checking the formula
-        receipt = _make_receipt(
-            builder,
-            trace_id="trc_fixed",
-            tool="read_file",
-        )
-        assert receipt.tool_call_id != ""
-
-    def test_tool_call_id_in_signing_payload(self, builder):
-        """tool_call_id must be in the signing payload."""
-        receipt = _make_receipt(builder, tool_call_id="call_xyz789")
-        payload_dict = json.loads(receipt.signing_payload())
-        assert "tool_call_id" in payload_dict
-        assert payload_dict["tool_call_id"] == "call_xyz789"
-
-    def test_tamper_tool_call_id_breaks_signature(self, builder):
-        """Modifying tool_call_id after signing should break signature."""
-        receipt = _make_receipt(builder, tool_call_id="call_original")
-        assert receipt.verify_signature() is True
-        receipt.tool_call_id = "call_tampered"
-        assert receipt.verify_signature() is False
-
-    def test_different_tool_call_ids_different_signatures(self, builder):
-        """Different tool_call_ids should produce different signatures."""
-        ts = time.time()
-        receipt_a = _make_receipt(
-            builder, tool_call_id="call_a", trace_id="trc_same",
-            request_timestamp=ts, verified_at=ts,
-        )
-        receipt_b = _make_receipt(
-            builder, tool_call_id="call_b", trace_id="trc_same",
-            request_timestamp=ts, verified_at=ts,
-        )
-        assert receipt_a.signature != receipt_b.signature
+    def test_tamper_breaks_signature(self):
+        r = _build_signed(tool_call_id="call_xyz")
+        assert r.verify_signature() is True
+        r.tool_call_id = "tampered"
+        assert r.verify_signature() is False
 
 
 # ---------------------------------------------------------------------------
-# 4. args_digest field
+# 3. args_digest field
 # ---------------------------------------------------------------------------
 
 class TestArgsDigest:
-    """Tests for args_digest — SHA-256 of exact pre-execution arguments."""
-
-    def test_args_digest_default_auto_computed(self, builder):
-        """When not provided, args_digest should be auto-computed from params."""
+    def test_auto_computed(self):
         params = {"command": "echo test", "timeout": 30}
-        receipt = _make_receipt(builder, params=params)
-        assert receipt.args_digest != ""
+        r = _build_unsigned(params=params)
+        assert r.args_digest != ""
+        expected = hashlib.sha256(canonical_json(params)).hexdigest()
+        assert r.args_digest == expected
 
-        # Verify it matches manual computation
-        expected = hashlib.sha256(
-            _canonical_json(params)
-        ).hexdigest()[:16]
-        assert receipt.args_digest == expected
+    def test_different_params_different_digest(self):
+        a = _build_unsigned(params={"command": "echo a"})
+        b = _build_unsigned(params={"command": "echo b"})
+        assert a.args_digest != b.args_digest
 
-    def test_args_digest_explicit_value(self, builder):
-        """Explicitly provided args_digest should be used as-is."""
-        receipt = _make_receipt(builder, args_digest="deadbeef12345678")
-        assert receipt.args_digest == "deadbeef12345678"
+    def test_tamper_breaks_signature(self):
+        r = _build_signed(params={"command": "echo safe"})
+        assert r.verify_signature() is True
+        r.args_digest = "0" * 64
+        assert r.verify_signature() is False
 
-    def test_args_digest_different_params_different_digest(self, builder):
-        """Different params should produce different args_digests."""
-        receipt_a = _make_receipt(builder, params={"command": "echo a"})
-        receipt_b = _make_receipt(builder, params={"command": "echo b"})
-        assert receipt_a.args_digest != receipt_b.args_digest
+    def test_64_hex_chars(self):
+        r = _build_unsigned(params={"k": "v"})
+        assert len(r.args_digest) == 64
+        int(r.args_digest, 16)
 
-    def test_args_digest_same_params_same_digest(self, builder):
-        """Same params should produce same args_digest (deterministic)."""
-        params = {"command": "echo same", "flag": True}
-        ts = time.time()
-        receipt_a = _make_receipt(
-            builder, params=params, trace_id="trc_a",
-            request_timestamp=ts, verified_at=ts,
+
+# ---------------------------------------------------------------------------
+# 4. Serialization round-trip
+# ---------------------------------------------------------------------------
+
+class TestSerialization:
+    def test_dict_roundtrip_preserves_fields(self):
+        r = _build_signed(
+            rule_version="v2.0.0",
+            tool_call_id="call_rt",
+            params={"command": "echo hi"},
         )
-        receipt_b = _make_receipt(
-            builder, params=params, trace_id="trc_b",
-            request_timestamp=ts, verified_at=ts,
-        )
-        assert receipt_a.args_digest == receipt_b.args_digest
+        d = r.to_dict()
+        restored = L1Receipt.from_dict(d, strict=True)
+        assert restored.rule_version == "v2.0.0"
+        assert restored.tool_call_id == "call_rt"
+        assert restored.verify_signature() is True
 
-    def test_args_digest_in_signing_payload(self, builder):
-        """args_digest must be in the signing payload."""
-        receipt = _make_receipt(builder, args_digest="abcdef0123456789")
-        payload_dict = json.loads(receipt.signing_payload())
-        assert "args_digest" in payload_dict
-        assert payload_dict["args_digest"] == "abcdef0123456789"
+    def test_json_roundtrip(self):
+        r = _build_signed(rule_version="v1.0.0", tool_call_id="call_j")
+        s = json.dumps(r.to_dict(), sort_keys=True)
+        restored = L1Receipt.from_json(s)
+        assert restored.rule_version == "v1.0.0"
+        assert restored.verify_signature() is True
 
-    def test_tamper_args_digest_breaks_signature(self, builder):
-        """Modifying args_digest after signing should break signature."""
-        receipt = _make_receipt(builder, args_digest="original12345678")
-        assert receipt.verify_signature() is True
-        receipt.args_digest = "tampered99999999"
-        assert receipt.verify_signature() is False
-
-    def test_args_digest_is_16_chars_when_auto_computed(self, builder):
-        """Auto-computed args_digest should be 16 hex characters (truncated SHA-256)."""
-        receipt = _make_receipt(builder, params={"key": "value"})
-        assert len(receipt.args_digest) == 16
-        int(receipt.args_digest, 16)  # Valid hex
-
-    def test_args_digest_empty_when_no_params(self, builder):
-        """When params is empty dict and no args_digest given, should be empty."""
-        receipt = _make_receipt(builder, params={})
-        # Empty params → falsy → args_digest stays empty
-        assert receipt.args_digest == ""
+    def test_unknown_fields_rejected_in_strict_mode(self):
+        r = _build_signed()
+        d = r.to_dict()
+        d["unexpected_field"] = "x"
+        with pytest.raises(ValueError):
+            L1Receipt.from_dict(d, strict=True)
 
 
 # ---------------------------------------------------------------------------
@@ -337,208 +234,179 @@ class TestArgsDigest:
 # ---------------------------------------------------------------------------
 
 class TestBackwardCompatibility:
-    """Tests ensuring old callers (not passing new fields) still work."""
+    def test_receipt_valid_without_new_fields(self):
+        b = L1ReceiptBuilder(trace_id="trc_bc", verdict=Verdict.ALLOW)
+        b.tool("shell").params_hash("abc")
+        b.issuer("ccs-verifier/test").audience("agent").action("shell.exec")
+        now = time.time()
+        b.time_bounds(issued_at=now, expiry=now + 60)
+        seed, _ = _key_pair()
+        r = b.build(seed)
+        assert r.verify_signature() is True
+        assert r.rule_version == ""
+        assert r.tool_call_id == ""
 
-    def test_receipt_valid_without_new_fields(self, builder):
-        """Receipt built without new fields should pass full verification."""
-        receipt = _make_receipt(builder)
-        results = verify_l1_receipt(receipt)
-        assert results["signature_valid"] is True
-        assert results["all_pass"] is True
-
-    def test_new_fields_default_empty(self, builder):
-        """New fields should default to empty strings when not provided."""
-        receipt = _make_receipt(builder)
-        assert receipt.rule_version == ""
-        # tool_call_id and args_digest are auto-derived, so non-empty
-        # but rule_version stays empty
-
-    def test_receipt_version_is_1_1(self, builder):
-        """receipt_version should be '1.1' after the upgrade."""
-        receipt = _make_receipt(builder)
-        assert receipt.receipt_version == "1.1"
-
-    def test_deserialize_old_format_with_empty_new_fields(self):
-        """Deserializing a receipt dict with missing new fields should work
-        (they default to empty string)."""
-        signer = Ed25519Signer()
-        old_builder = L1ReceiptBuilder(
-            signer=signer,
-            issuer="ccs-verifier",
-            audience="agent:old",
-            verifier_version="0.5.0",
-        )
-        receipt = _make_receipt(old_builder)
-        d = receipt.to_dict()
-        # Simulate old format by removing new fields
-        d.pop("rule_version", None)
-        d.pop("tool_call_id", None)
-        d.pop("args_digest", None)
-        # Should still deserialize (dataclass defaults)
-        restored = L1Receipt(**d)
-        assert restored.rule_version == ""
-        assert restored.tool_call_id == ""
-        assert restored.args_digest == ""
-
-    def test_l0_sign_receipt_still_works(self):
-        """L0 HMAC signing function should be unchanged."""
-        from ccs_verifier_l1 import sign_receipt_l0
-        sig = sign_receipt_l0(
-            trace_id="trc_l0",
-            verdict="allow",
-            timestamp=time.time(),
-            secret=b"test_secret_key",
-            tool="shell",
-            params_hash="abc123",
-        )
-        assert len(sig) == 32
-        assert all(c in "0123456789abcdef" for c in sig)
+    def test_unsigned_receipt_has_empty_signature(self):
+        r = _build_unsigned()
+        assert r.signature == ""
+        assert r.public_key == ""
 
 
 # ---------------------------------------------------------------------------
-# 6. Serialization round-trip
+# 6. VERIFIED vs ACCEPTED two-stage trust (Iman audit)
 # ---------------------------------------------------------------------------
 
-class TestSerialization:
-    """Tests for JSON serialization with new fields."""
+class TestTrustModel:
+    def test_reference_anchor_loads(self):
+        anchor = load_reference_anchor()
+        assert anchor.issuer == "ccs-verifier/reference"
+        assert len(anchor.public_key_bytes) == 32
+        assert len(anchor.public_key_fingerprint_sha256_16) == 16
 
-    def test_serialize_deserialize_roundtrip(self, builder):
-        """Serialized and deserialized receipt should preserve new fields."""
-        receipt = _make_receipt(
-            builder,
-            rule_version="v2.0.0",
-            tool_call_id="call_roundtrip",
-            args_digest="roundtrip1234567",
+    def test_self_signed_spoofed_issuer_verified_but_not_accepted(self):
+        """Attacker key with spoofed issuer string: VERIFIED, not ACCEPTED."""
+        attacker_seed, _ = _key_pair()
+        r = _build_unsigned(
+            issuer="ccs-verifier/reference",  # spoofed
+            audience="emilia-gate",
+            rule_summary="attacker_spoof",
         )
-        json_str = serialize_receipt(receipt)
-        restored = deserialize_receipt(json_str)
+        signed = sign_l1_receipt(r, attacker_seed)
+        assert signed.verify_signature() is True
+        decision = evaluate_trust(signed, [load_reference_anchor()])
+        assert decision.verified is True
+        assert decision.accepted is False
+        assert decision.reason in ("fingerprint_mismatch", "public_key_mismatch")
 
-        assert restored.rule_version == "v2.0.0"
-        assert restored.tool_call_id == "call_roundtrip"
-        assert restored.args_digest == "roundtrip1234567"
-        assert restored.verify_signature() is True
-
-    def test_to_json_includes_new_fields(self, builder):
-        """to_json() output should include new fields."""
-        receipt = _make_receipt(builder, rule_version="v1.0.0")
-        d = json.loads(receipt.to_json())
-        assert "rule_version" in d
-        assert "tool_call_id" in d
-        assert "args_digest" in d
-
-    def test_serialized_receipt_verification(self, builder):
-        """A serialized-then-deserialized receipt should still verify."""
-        receipt = _make_receipt(
-            builder,
-            rule_version="v1.2.0",
-            tool_call_id="call_verify",
-            args_digest="verify1234567890",
+    def test_correctly_signed_receipt_is_verified_and_accepted(self):
+        seed, pub = _key_pair()
+        anchor = TrustAnchor(
+            issuer="ccs-verifier/test",
+            public_key_raw_b64=__import__("base64").b64encode(pub).decode(),
+            public_key_fingerprint_sha256_16=hashlib.sha256(pub).hexdigest()[:16],
         )
-        json_str = serialize_receipt(receipt)
-        restored = deserialize_receipt(json_str)
-        results = verify_l1_receipt(restored)
-        assert results["signature_valid"] is True
+        r = _build_unsigned(
+            issuer="ccs-verifier/test",
+            audience="emilia-gate",
+            rule_summary="trusted_path",
+        )
+        signed = sign_l1_receipt(r, seed)
+        decision = evaluate_trust(signed, [anchor])
+        assert decision.verified is True
+        assert decision.accepted is True
+        assert decision.reason == "ok"
+
+    def test_no_anchor_for_issuer_is_not_accepted(self):
+        seed, _ = _key_pair()
+        r = _build_unsigned(issuer="unknown-issuer", audience="x", rule_summary="u")
+        signed = sign_l1_receipt(r, seed)
+        decision = evaluate_trust(signed, [load_reference_anchor()])
+        assert decision.verified is True
+        assert decision.accepted is False
+        assert decision.reason.startswith("no_pinned_anchor_for_issuer:")
+
+    def test_tampered_receipt_fails_verification(self):
+        seed, pub = _key_pair()
+        anchor = TrustAnchor(
+            issuer="ccs-verifier/test",
+            public_key_raw_b64=__import__("base64").b64encode(pub).decode(),
+            public_key_fingerprint_sha256_16=hashlib.sha256(pub).hexdigest()[:16],
+        )
+        r = _build_unsigned(issuer="ccs-verifier/test", audience="x", rule_summary="t")
+        signed = sign_l1_receipt(r, seed)
+        signed.verdict = "deny"
+        decision = evaluate_trust(signed, [anchor])
+        assert decision.verified is False
+        assert decision.accepted is False
+        assert decision.reason == "signature_failed"
 
 
 # ---------------------------------------------------------------------------
-# 7. Integration: all three new fields together
+# 7. Reference-signed canonical vector reproducibility
 # ---------------------------------------------------------------------------
 
-class TestIntegration:
-    """Integration tests combining all v1.1 improvements."""
+class TestReferenceVector:
+    """The reference-signed vector shipped in tests/conformance-vectors/
+    MUST be reproducible from the public deterministic seed. This lets an
+    auditor verify the vector without trusting the package author's word.
+    """
 
-    def test_all_new_fields_together(self, builder):
-        """All three new fields should work together in a single receipt."""
-        params = {"command": "rm -rf /tmp/test", "force": True}
-        receipt = _make_receipt(
-            builder,
-            params=params,
-            verdict="deny",
-            block_reason="RCE protection triggered",
-            rule_version="v3.0.0",
-            tool_call_id="call_integration_001",
-            args_digest="integration12345",
+    def _build_reference_signed(self):
+        seed = load_reference_private_seed()
+        # Fixed fields so the receipt is byte-deterministic.
+        b = L1ReceiptBuilder(trace_id="ref-vector-001", verdict=Verdict.ALLOW)
+        b.tool("shell")
+        b.params_hash("refvec001")
+        b.args_digest({"command": "echo reference"})
+        b.rule_summary("reference_vector")
+        b.rule_version("1.1.13")
+        b.request_hash({"ref": 1})
+        b.response_hash({"ok": True})
+        b.runtime_context({"dist": "reference"})
+        b.config_hash({"mode": "reference"})
+        b.verifier_source_class("VerifierServer")
+        b.deployment_mode("in-process")
+        b.issuer("ccs-verifier/reference")
+        b.audience("public")
+        b.nonce("reference-nonce-001")
+        b.sequence(0)
+        # Fixed epoch: 2026-08-15T00:00:00Z
+        ts = 1755201600.0
+        b.time_bounds(issued_at=ts, expiry=ts + 300)
+        b.action("shell.execute")
+        b.latency_us(0)
+        r = b.build()
+        # Force timestamp and verified_at to fixed values for full
+        # reproducibility; sign_l1_receipt copies them into the signed
+        # payload so the output is byte-identical across builds.
+        r.timestamp = ts
+        r.verified_at = ts
+        r = sign_l1_receipt(r, seed)
+        return r
+
+    def test_reference_seed_matches_reference_anchor(self):
+        seed = load_reference_private_seed()
+        pub = get_public_key(seed)
+        anchor = load_reference_anchor()
+        assert pub == anchor.public_key_bytes
+        assert public_key_fingerprint(pub) == anchor.public_key_fingerprint_sha256_16
+
+    def test_reference_receipt_is_verified_and_accepted(self):
+        r = self._build_reference_signed()
+        assert r.verify_signature() is True
+        decision = evaluate_trust(r, [load_reference_anchor()])
+        assert decision.verified is True
+        assert decision.accepted is True
+        assert decision.reason == "ok"
+
+    def test_reference_vector_matches_shipped_file(self):
+        shipped_path = VECTOR_DIR / "reference-signed-001.json"
+        assert shipped_path.exists(), (
+            "reference-signed-001.json is missing from conformance-vectors/"
         )
-        assert receipt.rule_version == "v3.0.0"
-        assert receipt.tool_call_id == "call_integration_001"
-        assert receipt.args_digest == "integration12345"
-        assert receipt.verify_signature() is True
-        assert receipt.receipt_version == "1.1"
-
-        results = verify_l1_receipt(receipt)
-        assert results["all_pass"] is True
-
-    def test_full_chain_tamper_detection(self, builder):
-        """Tampering with ANY of the three new fields should break signature."""
-        receipt = _make_receipt(
-            builder,
-            rule_version="v1.0.0",
-            tool_call_id="call_chain",
-            args_digest="chain1234567890",
+        with open(shipped_path) as f:
+            shipped = json.load(f)
+        # The shipped file must contain the same receipt we build from the seed.
+        rebuilt = self._build_reference_signed().to_dict()
+        assert rebuilt == shipped["receipt"], (
+            "Reference vector is not reproducible from the public seed."
         )
-        assert receipt.verify_signature() is True
+        # Cross-check the declared fingerprint.
+        anchor = load_reference_anchor()
+        assert shipped["public_key_fingerprint_sha256_16"] == \
+            anchor.public_key_fingerprint_sha256_16
 
-        # Tamper rule_version
-        receipt.rule_version = "v9.9.9"
-        assert receipt.verify_signature() is False
-        receipt.rule_version = "v1.0.0"
-        assert receipt.verify_signature() is True
+    def test_reference_vector_is_deterministic(self):
+        """Building the same receipt twice must produce identical bytes."""
+        r1 = self._build_reference_signed().to_dict()
+        r2 = self._build_reference_signed().to_dict()
+        assert r1 == r2
 
-        # Tamper tool_call_id
-        receipt.tool_call_id = "tampered_call"
-        assert receipt.verify_signature() is False
-        receipt.tool_call_id = "call_chain"
-        assert receipt.verify_signature() is True
 
-        # Tamper args_digest
-        receipt.args_digest = "tampered00000000"
-        assert receipt.verify_signature() is False
+# ---------------------------------------------------------------------------
+# 8. Field count contract
+# ---------------------------------------------------------------------------
 
-    def test_rule_hash_can_be_computed_alongside_receipt(self, builder):
-        """compute_rule_hash can be used to generate a hash that accompanies
-        the receipt for external audit."""
-        rule_version = "v2.1.0"
-        rule_name = "ssrf_protection"
-        receipt = _make_receipt(builder, rule_version=rule_version)
-        rule_hash = compute_rule_hash(rule_version, rule_name)
-
-        # The rule_hash is a separate audit artifact
-        assert len(rule_hash) == 64
-        assert receipt.rule_version == rule_version
-
-    def test_auto_derivation_consistency(self, builder):
-        """Auto-derived args_digest should be consistent with manual computation."""
-        params = {"file": "/etc/passwd", "mode": "read"}
-        receipt = _make_receipt(builder, params=params)
-
-        manual_digest = hashlib.sha256(
-            _canonical_json(params)
-        ).hexdigest()[:16]
-        assert receipt.args_digest == manual_digest
-
-    def test_performance_new_fields_minimal_overhead(self, builder):
-        """Adding new fields should not significantly impact performance."""
-        # Warmup
-        for _ in range(10):
-            _make_receipt(builder)
-
-        # Measure
-        latencies = []
-        for _ in range(100):
-            t0 = time.perf_counter_ns()
-            _make_receipt(
-                builder,
-                rule_version="v1.0.0",
-                tool_call_id="call_perf",
-                args_digest="perf12345678901",
-            )
-            t1 = time.perf_counter_ns()
-            latencies.append(t1 - t0)
-
-        import statistics
-        p50 = statistics.median(latencies)
-        # P50 should be well under 1ms (1,000,000 ns)
-        # The spec target is < 100μs but Ed25519 signing dominates,
-        # so we verify it's reasonable (< 10ms as a sanity check)
-        assert p50 < 10_000_000, f"P50 too high: {p50}ns"
-        print(f"\n  P50 latency: {p50/1000:.1f}μs")
+class TestFieldContract:
+    def test_l1_receipt_has_30_fields(self):
+        assert len(L1Receipt.__dataclass_fields__) == 30

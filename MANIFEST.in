@@ -1,1 +1,5 @@
+include LICENSE
+include README.md
 include ccs_verifier/reference_issuer.json
+recursive-include tests *.py *.json *.md
+recursive-include benchmark *.py
