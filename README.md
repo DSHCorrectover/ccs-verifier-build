@@ -143,6 +143,23 @@ A two-stage **VERIFIED vs ACCEPTED** trust model separates cryptographic self-co
 | Schema | `-32602` | No | Fix request format |
 | Structure | `-32700` | No | Fix output format |
 
+## Professional Services
+
+Need an independent audit of your agent delegation chain? We provide:
+
+- **CCS Runtime Audit** — 7-dimension verification of your MCP/A2A tool invocations, covering authority non-widening, delegation cycle detection, per-operation authorization, and verifiable provenance.
+- **Tamper-evident receipts** — every verified invocation produces a signed audit record suitable for compliance and incident response.
+- **IETF-aligned methodology** — maps to requirements being defined in the IETF AI Connect working group, so your audit remains valid as standards converge.
+
+Starting at **¥30,000 / ~$4,200**. Deliverables: full delegation-chain map, findings report with severity-rated gaps, reproducible test vectors, and a signed CCS conformance certificate.
+
+→ [Request an audit](https://correctover.com/audit)
+
+## License
+
+Proprietary Commercial License. Source is available for audit and review.
+See [LICENSE](https://codeberg.org/correctover-labs/ccs-verifier/src/branch/main/LICENSE).
+
 ## License
 
 Copyright © 2026 Correctover. All rights reserved.
