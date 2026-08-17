@@ -4,9 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ccs-verifier"
-version = "1.1.14"
-description = "CCS Runtime Verifier — Out-of-process verification for AI agent commands"
+version = "1.1.15"
+description = "CCS Runtime Verifier — IETF-aligned 7-dimension verification for AI agent delegation chains. Authority non-widening, cycle detection, signed provenance. Sub-50μs."
 readme = "README.md"
+homepage = "https://correctover.com"
+documentation = "https://correctover.com/audit"
+repository = "https://codeberg.org/correctover-labs/ccs-verifier"
 license = {text = "Proprietary Commercial License"}
 requires-python = ">=3.10"
 keywords = ["security", "ai", "agent", "mcp", "runtime-verification", "ccs"]
