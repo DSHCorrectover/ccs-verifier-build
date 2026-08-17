@@ -153,7 +153,7 @@ Need an independent audit of your agent delegation chain? We provide:
 
 Starting at **¥30,000 / ~$4,200**. Deliverables: full delegation-chain map, findings report with severity-rated gaps, reproducible test vectors, and a signed CCS conformance certificate.
 
-→ [Request an audit](https://correctover.com/audit)
+→ [Request an audit](https://audit.correctover.com)
 
 ## License
 
