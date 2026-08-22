@@ -9,7 +9,7 @@ description = "CCS Runtime Verifier — IETF-aligned 7-dimension verification fo
 readme = "README.md"
 homepage = "https://correctover.com"
 documentation = "https://correctover.com/audit"
-repository = "https://codeberg.org/correctover-labs/ccs-verifier"
+repository = "https://github.com/DSHCorrectover/ccs-verifier"
 license = {text = "Proprietary Commercial License"}
 requires-python = ">=3.10"
 keywords = ["security", "ai", "agent", "mcp", "runtime-verification", "ccs"]
