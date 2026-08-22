@@ -4,15 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ccs-verifier"
-version = "1.1.15"
-description = "CCS Runtime Verifier — IETF-aligned 7-dimension verification for AI agent delegation chains. Authority non-widening, cycle detection, signed provenance. Sub-50μs."
+version = "1.1.16"
+description = "CCS Runtime Verifier — IETF-aligned 7-dimension verification for AI agent delegation chains. Authority non-widening, cycle detection, signed provenance. Sub-50us."
 readme = "README.md"
-homepage = "https://correctover.com"
-documentation = "https://correctover.com/audit"
-repository = "https://github.com/DSHCorrectover/ccs-verifier"
-license = {text = "Proprietary Commercial License"}
 requires-python = ">=3.10"
-keywords = ["security", "ai", "agent", "mcp", "runtime-verification", "ccs"]
+license = {text = "Elastic License 2.0"}
+authors = [
+    {name = "Correctover"},
+]
+keywords = ["security", "ai", "agent", "mcp", "runtime-verification", "ccs", "ed25519", "evidence-receipts", "jcs", "rfc8785"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -31,6 +31,14 @@ dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
 ]
+
+[project.urls]
+Homepage = "https://github.com/DSHCorrectover/ccs-verifier#readme"
+Repository = "https://github.com/DSHCorrectover/ccs-verifier"
+"Bug Tracker" = "https://github.com/DSHCorrectover/ccs-verifier/issues"
+"IETF Draft" = "https://datatracker.ietf.org/doc/draft-correctover-ccs/"
+"npm Package" = "https://www.npmjs.com/package/ccs-mcp-server"
+"Zenodo DOI" = "https://doi.org/10.5281/zenodo.22055351"
 
 [project.scripts]
 ccs-verifier = "ccs_verifier.__main__:main"
