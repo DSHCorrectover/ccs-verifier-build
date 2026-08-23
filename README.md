@@ -165,3 +165,7 @@ See [LICENSE](https://codeberg.org/correctover-labs/ccs-verifier/src/branch/main
 Copyright © 2026 Correctover. All rights reserved.
 
 This project is licensed under the [Proprietary Commercial License](LICENSE) — see the LICENSE file for details.
+
+## Community
+
+- 💬 **Discussions**: [CCS Discussions](https://github.com/DSHCorrectover/ccs-mcp-server/discussions) — receipt interoperability, integration questions, protocol feedback
