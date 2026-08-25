@@ -54,7 +54,7 @@ v1.1.6 fixes:
   - Conformance test vectors (l1-001 through l1-005)
 
 v1.1.7 fixes (per Iman Schrock external reproduction findings):
-  - FIELD RENAME (spec alignment per draft-correctover-ccs-02 §5.9 / Appendix A):
+  - FIELD RENAME (spec alignment per CCS spec v1.1 §5.9):
     - issuance_bound → issued_at (float, Level 1, signed)
     - expiry_bound → expires_at (float, Level 1, signed)
     - clock_skew_bound → max_clock_skew (float, Level 1, signed)
@@ -108,7 +108,7 @@ _MIN_SAFE_INTEGER = -(1 << 53) + 1
 _KNOWN_FIELDS: frozenset[str] = frozenset()  # populated after class definition
 
 # Old field name → new field name mapping (v1.1.6 → v1.1.7)
-# Per draft-correctover-ccs-02 §5.9 and Appendix A Field 19-21
+# Per CCS spec v1.1 §5.9 and Appendix A Field 19-21
 _OLD_FIELD_MAP: dict[str, str] = {
     "issuance_bound": "issued_at",
     "expiry_bound": "expires_at",
@@ -224,7 +224,7 @@ class L1Receipt:
     compatible with the CAID (Chain of Attestation for Inference & Deployment)
     specification.
 
-    Field naming follows draft-correctover-ccs-02 §5.9 / Appendix A:
+    Field naming follows CCS spec v1.1 §5.9:
       - issued_at: Issue timestamp (was issuance_bound in v1.1.6)
       - expires_at: Expiry timestamp (was expiry_bound in v1.1.6)
       - max_clock_skew: Clock tolerance in seconds (was clock_skew_bound in v1.1.6)
@@ -262,7 +262,7 @@ class L1Receipt:
     audience: str = ""
     nonce: str = field(default_factory=lambda: secrets.token_hex(16))
 
-    # Sequence & time bounds (4) — renamed per draft-correctover-ccs-02
+    # Sequence & time bounds (4) — renamed per CCS spec v1.1
     sequence: int = 0
     issued_at: float = 0.0
     expires_at: float = 0.0
@@ -854,7 +854,7 @@ class L1ReceiptBuilder:
         expiry: float = 0.0,
         clock_skew: float = 0.0,
     ) -> "L1ReceiptBuilder":
-        """Set time bounds per draft-correctover-ccs-02 §5.9.
+        """Set time bounds per CCS spec v1.1 §5.9.
 
         Args:
             issued_at: Issue timestamp (maps to receipt.issued_at).

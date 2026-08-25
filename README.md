@@ -1,15 +1,15 @@
 <p align="center">
   <a href="https://pypi.org/project/ccs-verifier/"><img src="https://img.shields.io/pypi/v/ccs-verifier?label=PyPI&logo=pypi&logoColor=white&color=blue" alt="PyPI"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/pypi/pyversions/ccs-verifier?logo=python&logoColor=white" alt="Python 3.10+"></a>
-  <a href="https://codeberg.org/correctover-labs/ccs-verifier/src/branch/main/LICENSE"><img src="https://img.shields.io/badge/License-Proprietary-orange" alt="License"></a>
-  <a href="https://codeberg.org/correctover-labs/ccs-verifier"><img src="https://img.shields.io/badge/Source-Codeberg-blue?logo=forgejo" alt="Source on Codeberg"></a>
-  <a href="https://www.npmjs.com/package/ccs-runtime"><img src="https://img.shields.io/npm/v/ccs-runtime?label=npm&logo=npm" alt="npm"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Elastic--2.0-blue" alt="License: Elastic-2.0"></a>
+  <a href="https://github.com/DSHCorrectover/ccs-verifier"><img src="https://img.shields.io/badge/Source-GitHub-blue?logo=github" alt="Source on GitHub"></a>
+  <a href="https://www.npmjs.com/package/ccs-mcp-server"><img src="https://img.shields.io/npm/v/ccs-mcp-server?label=npm&logo=npm" alt="npm"></a>
   <a href="https://doi.org/10.5281/zenodo.21915312"><img src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21915312-blue" alt="DOI"></a>
 </p>
 
 <h1 align="center">CCS Verifier</h1>
 <p align="center">
-  <strong>CCS Runtime Verifier</strong> — Reference implementation of the Correctover Conformance Shape specification (<a href="https://datatracker.ietf.org/doc/draft-correctover-ccs/">IETF draft-correctover-ccs</a>)
+  <strong>CCS Runtime Verifier</strong> — Reference implementation of the Correctover Conformance Shape (CCS) receipt specification
 </p>
 
 ---
@@ -85,16 +85,18 @@ CCS Verifier includes a 5-layer MCP ecosystem vulnerability scanner. The followi
 | 4 | `tool_poisoning` | Hidden instruction injection in MCP tool descriptions targeting LLM consumers |
 | 5 | `rug_pull` | Dynamic behavior change / post-approval mutation in MCP tool definitions |
 
-**Responsible disclosure**: If you discover a bypass or vulnerability, please open an issue on [Codeberg](https://codeberg.org/correctover-labs/ccs-verifier/issues) or contact the maintainers at wangguigui@correctover.com. We follow coordinated disclosure practices.
+**Responsible disclosure**: If you discover a bypass or vulnerability, please open an issue on [GitHub](https://github.com/DSHCorrectover/ccs-verifier/issues) or contact the maintainers at wangguigui@correctover.com. We follow coordinated disclosure practices.
 
-## Specification & Standards
+## Specification & Resources
 
 | Resource | Link |
 |----------|------|
-| IETF Internet-Draft | [draft-correctover-ccs](https://datatracker.ietf.org/doc/draft-correctover-ccs/) |
+| CCS Receipt Specification | [CCS field specification](docs/ccs-receipt-spec.md) |
 | DOI (Zenodo) | [10.5281/zenodo.21915312](https://doi.org/10.5281/zenodo.21915312) |
 | CCS Formal Framework | [DOI:10.5281/zenodo.21271910](https://doi.org/10.5281/zenodo.21271910) |
 | Conformance Test Vectors | [`tests/conformance-vectors/`](tests/conformance-vectors/) |
+| MCP Server (npm) | [ccs-mcp-server](https://www.npmjs.com/package/ccs-mcp-server) |
+| Lint CLI (npm) | [ccs-lint](https://www.npmjs.com/package/ccs-lint) |
 
 ## Out-of-Process Deployment
 
@@ -123,7 +125,7 @@ The `Verifier` class **auto-detects** whether an out-of-process server is runnin
 | Level | Signature | Fields | Use Case |
 |-------|-----------|--------|----------|
 | **L0** | HMAC-SHA256 | 6 | Fast in-process verification, shared-secret audit trail |
-| **L1** | Ed25519 | 30 | Third-party verifiable receipts, CAID-compatible evidence chain |
+| **L1** | Ed25519 | 30 | Third-party verifiable receipts, cryptographic evidence chain |
 
 L1 receipts include `rule_version`, `tool_call_id`, and `args_digest` bindings that enable decision causality verification and anti-silent-drop guarantees.
 
@@ -149,7 +151,7 @@ Need an independent audit of your agent delegation chain? We provide:
 
 - **CCS Runtime Audit** — 7-dimension verification of your MCP/A2A tool invocations, covering authority non-widening, delegation cycle detection, per-operation authorization, and verifiable provenance.
 - **Tamper-evident receipts** — every verified invocation produces a signed audit record suitable for compliance and incident response.
-- **IETF-aligned methodology** — maps to requirements being defined in the IETF AI Connect working group, so your audit remains valid as standards converge.
+- **CCS-aligned methodology** — maps to cryptographic evidence requirements in AI agent governance frameworks, so your audit remains valid as standards converge.
 
 Starting at **¥30,000 / ~$4,200**. Deliverables: full delegation-chain map, findings report with severity-rated gaps, reproducible test vectors, and a signed CCS conformance certificate.
 
@@ -157,14 +159,9 @@ Starting at **¥30,000 / ~$4,200**. Deliverables: full delegation-chain map, fin
 
 ## License
 
-Proprietary Commercial License. Source is available for audit and review.
-See [LICENSE](https://codeberg.org/correctover-labs/ccs-verifier/src/branch/main/LICENSE).
+Copyright © 2026 Correctover.
 
-## License
-
-Copyright © 2026 Correctover. All rights reserved.
-
-This project is licensed under the [Proprietary Commercial License](LICENSE) — see the LICENSE file for details.
+This project is licensed under the [Elastic License 2.0](LICENSE) — see the LICENSE file for details.
 
 ## Community
 

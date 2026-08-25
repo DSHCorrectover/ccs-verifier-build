@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ccs-verifier"
 version = "1.1.16"
-description = "CCS Runtime Verifier — IETF-aligned 7-dimension verification for AI agent delegation chains. Authority non-widening, cycle detection, signed provenance. Sub-50us."
+description = "CCS Runtime Verifier — 7-dimension cryptographic verification for AI agent delegation chains. Authority non-widening, cycle detection, signed provenance. Sub-50us."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Elastic License 2.0"}
@@ -36,7 +36,7 @@ dev = [
 Homepage = "https://github.com/DSHCorrectover/ccs-verifier#readme"
 Repository = "https://github.com/DSHCorrectover/ccs-verifier"
 "Bug Tracker" = "https://github.com/DSHCorrectover/ccs-verifier/issues"
-"IETF Draft" = "https://datatracker.ietf.org/doc/draft-correctover-ccs/"
+"Documentation" = "https://github.com/DSHCorrectover/ccs-verifier#specification--resources"
 "npm Package" = "https://www.npmjs.com/package/ccs-mcp-server"
 "Zenodo DOI" = "https://doi.org/10.5281/zenodo.22055351"
 

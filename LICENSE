@@ -1,12 +1,95 @@
-Copyright (c) 2026 Correctover. All rights reserved.
+Elastic License 2.0
 
-PROPRIETARY COMMERCIAL LICENSE
+URL: https://www.elastic.co/licensing/elastic-license
 
-This software and associated documentation files (the "Software") are proprietary
-and confidential to Correctover. Unauthorized copying, distribution, modification,
-or use of this Software, via any source, is strictly prohibited.
+## Acceptance
 
-The Software is provided under commercial license terms. For licensing inquiries,
-contact: wangguigui@correctover.com
+By using the software, you agree to all of the terms and conditions below.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+## Copyright License
+
+The licensor grants you a non-exclusive, royalty-free, worldwide,
+non-sublicensable, non-transferable license to use, copy, distribute,
+make available, and prepare derivative works of the software, in each
+case subject to the limitations and conditions below.
+
+## Limitations
+
+You may not provide the software to third parties as a hosted or managed
+service, where the service provides users with access to any substantial
+set of the features or functionality of the software.
+
+You may not move, change, disable, or circumvent the license key
+functionality in the software, and you may not remove or obscure any
+functionality of the software that is protected by the license key.
+
+You may not alter, remove, or obscure any licensing, copyright, or other
+notices of the licensor in the software. Any use of the licensor's
+trademarks is subject to applicable law.
+
+## Patents
+
+A contributor grants you a license under the contributor's essential
+patent claims to make, have made, use, sell, offer for sale, import,
+and otherwise transfer the software, where such license applies only
+to those patent claims licensable by such contributor that are
+necessarily infringed by their contribution(s) alone or by combination
+of their contribution(s) with the software to which such
+contribution(s) was submitted.
+
+If you institute patent litigation against any entity (including a
+cross-claim or counterclaim in a lawsuit) alleging that the software
+or a contribution within the software infringes a patent, your patent
+license to the software ends on the date that such litigation is filed.
+
+## Notices
+
+You may not remove, alter, or obscure any copyright, trademark, or
+other proprietary rights notices from the software.
+
+If you modify the software, you must include a prominent notice in
+each modified file stating that you have changed the software.
+
+## No Other Rights
+
+The terms above do not grant any licenses to the licensor's trademarks,
+service marks, logos, or other brand features.
+
+The licensor may make new versions of this license available at
+https://www.elastic.co/licensing/elastic-license. Unless required by
+applicable law, the licensor will not modify the terms of this license
+for software you are already using.
+
+## Termination
+
+If you violate the terms above, your license ends immediately. Upon
+termination, you must cease all use of the software and destroy all
+copies in your possession or control.
+
+## No Liability
+
+As far as the law allows, the software comes AS IS, without any
+warranty or condition, and the licensor will not be liable to you for
+any damages arising out of or related to the software or these terms,
+including direct, indirect, special, incidental, consequential,
+punitive, or other damages, even if advised of the possibility of
+such damages.
+
+## Definitions
+
+"contribution" means any work of authorship, including the original
+version of the software and any modifications or additions to that
+software or derivative works thereof, that is submitted to the licensor
+for inclusion in the software.
+
+"contributor" means any person or legal entity that creates or contributes
+to a contribution.
+
+"licensor" means, with respect to the software, the copyright owner or
+entity authorized by the copyright owner that is granting the license.
+
+"software" means the software and associated documentation files
+covered by this license.
+
+"you" means an individual or legal entity exercising permissions granted
+by this license.
