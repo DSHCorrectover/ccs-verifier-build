@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ccs-verifier"
-version = "1.1.18"
+version = "1.1.19"
 description = "CCS Runtime Verifier — 7-dimension cryptographic verification for AI agent delegation chains. Authority non-widening, cycle detection, signed provenance. Sub-50us."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -44,7 +44,7 @@ Repository = "https://github.com/DSHCorrectover/ccs-verifier"
 ccs-verifier = "ccs_verifier.__main__:main"
 
 [tool.setuptools.packages.find]
-include = ["ccs_verifier*", "tests*"]
+include = ["ccs_verifier*"]
 
 [tool.setuptools.package-data]
 ccs_verifier = ["reference_issuer.json"]
