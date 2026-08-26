@@ -3,27 +3,34 @@ Build script for ccs-verifier.
 
 Compiles proprietary modules (audit_cli, builtin_rules) to native extensions
 via Cython. The .py source files for proprietary modules are REMOVED from the
-build directory before wheel packaging — only the compiled .so ships.
+build directory before wheel packaging — only the compiled .so/.pyd ships.
 """
 from setuptools import setup, find_packages, Extension
 from setuptools.command.build_py import build_py as _build_py
 from Cython.Build import cythonize
+import sys
 import os
 
 PROPRIETARY_MODULES = ["audit_cli", "builtin_rules"]
+
+# Platform-specific compile args
+if sys.platform == "win32":
+    extra_compile_args = ["/O2"]
+else:
+    extra_compile_args = ["-O3"]
 
 extensions = [
     Extension(
         f"ccs_verifier.{mod}",
         [f"ccs_verifier/{mod}.py"],
-        extra_compile_args=["-O3", "-s"],
+        extra_compile_args=extra_compile_args,
     )
     for mod in PROPRIETARY_MODULES
 ]
 
 
 class build_py(_build_py):
-    """After copying .py files, remove proprietary .py (we keep only .so)."""
+    """After copying .py files, remove proprietary .py (we keep only .so/.pyd)."""
 
     def run(self):
         super().run()
@@ -35,8 +42,6 @@ class build_py(_build_py):
 
 
 setup(
-    name="ccs-verifier",
-    version="1.3.0",
     packages=find_packages(),
     ext_modules=cythonize(
         extensions,
