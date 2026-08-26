@@ -6,3 +6,16 @@ dist_v119/
 .eggs/
 build/
 .pytest_cache/
+
+# Proprietary source — compiled to .so in distribution
+ccs_verifier/audit_cli.py
+ccs_verifier/builtin_rules.py
+
+# Compiled extensions
+ccs_verifier/*.so
+ccs_verifier/*.pyd
+ccs_verifier/*.dylib
+
+# Build artifacts
+build/
+*.egg-info/

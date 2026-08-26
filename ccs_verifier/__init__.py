@@ -1,5 +1,5 @@
 """
-CCS Runtime Verifier — Reference Implementation (v1.1.20)
+CCS Runtime Verifier — Reference Implementation (v1.3.0)
 
 Out-of-process runtime verification for AI agent commands.
 Protocol specification: https://doi.org/10.5281/zenodo.21234580
@@ -16,15 +16,9 @@ Usage:
     from ccs_verifier import Verifier, Command
     from ccs_verifier.builtin_rules import SSRFRule, RCERule
 
-    # Auto-detect out-of-process server, fallback to in-process
     verifier = Verifier(rules=[SSRFRule(), RCERule()])
     cmd = Command(agent_id="a1", tool="shell", params={"command": "ls"})
     result = verifier.verify(cmd)
-
-    # L1 Ed25519 receipt
-    from ccs_verifier.ccs_verifier_l1 import generate_ed25519_key, L1Receipt
-    private_key = generate_ed25519_key()
-    server = VerifierServer(rules=[SSRFRule()], l1_signing_key=private_key)
 """
 
 from ccs_verifier.protocol import (
@@ -56,9 +50,8 @@ from ccs_verifier.ccs_verifier_l1 import (
     canonical_json,
 )
 
-__version__ = "1.1.20"
+__version__ = "1.3.0"
 __all__ = [
-    # Protocol (L0)
     "Command",
     "VerificationResult",
     "Verdict",
@@ -66,7 +59,6 @@ __all__ = [
     "RuleResult",
     "DimensionError",
     "sign_receipt",
-    # L1 Receipt
     "L1Receipt",
     "L1ReceiptBuilder",
     "RECEIPT_VERSION",
@@ -81,15 +73,12 @@ __all__ = [
     "compute_request_hash",
     "compute_response_hash",
     "canonical_json",
-    # Client & Server
     "VerifierClient",
     "Verifier",
     "VerifierServer",
-    # Built-in rules
     "SSRFRule",
     "RCERule",
     "CredentialLeakRule",
-    # Transport
     "Transport",
     "TransportError",
     "UnixSocketTransport",

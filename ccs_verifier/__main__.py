@@ -86,7 +86,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--version",
         action="version",
-        version="ccs-verifier 1.1.20",
+        version="ccs-verifier 1.2.1",
     )
     return parser.parse_args()
 
