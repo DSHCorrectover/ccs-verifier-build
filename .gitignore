@@ -19,3 +19,4 @@ ccs_verifier/*.dylib
 # Build artifacts
 build/
 *.egg-info/
+tests/test_builtin_rules.py
