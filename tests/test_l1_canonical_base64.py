@@ -272,3 +272,48 @@ class TestCanonicalBase64Regression:
             "Canonical Base64 must pass"
         assert non_canonical_receipt.verify_signature(public_key) is False, \
             "Non-canonical Base64 must be rejected"
+
+
+# ---------------------------------------------------------------------------
+# 9. Non-finite floats (NaN / Infinity) must be rejected at canonicalization
+# ---------------------------------------------------------------------------
+# RFC 8259 §6 forbids NaN and Infinity as JSON numbers; RFC 8785 JCS inherits
+# the constraint. They must never enter a signed preimage, regardless of
+# json.dumps default allow_nan=True. Raised by Aleksey Safonov (safal207)
+# during CrewAI PR #7095 review.
+
+import math as _math
+import pytest as _pytest
+
+from ccs_verifier.ccs_verifier_l1 import canonical_json
+
+
+_NON_FINITE = [
+    ("nan", _math.nan),
+    ("positive_infinity", _math.inf),
+    ("negative_infinity", -_math.inf),
+]
+
+
+@_pytest.mark.parametrize("label,value", _NON_FINITE)
+def test_canonical_json_rejects_non_finite_float_at_top_level(label, value):
+    with _pytest.raises(ValueError, match="Non-finite float"):
+        canonical_json({"x": value})
+
+
+@_pytest.mark.parametrize("label,value", _NON_FINITE)
+def test_canonical_json_rejects_non_finite_float_nested_in_list(label, value):
+    with _pytest.raises(ValueError, match="Non-finite float"):
+        canonical_json({"outer": [1, 2, {"inner": value}]})
+
+
+@_pytest.mark.parametrize("label,value", _NON_FINITE)
+def test_canonical_json_rejects_non_finite_float_nested_in_dict(label, value):
+    with _pytest.raises(ValueError, match="Non-finite float"):
+        canonical_json({"outer": {"inner": value}})
+
+
+def test_canonical_json_accepts_finite_float_edge_values():
+    # -0.0, largest finite, subnormal — all valid JSON numbers.
+    out = canonical_json({"a": -0.0, "b": 1.7976931348623157e308, "c": 5e-324})
+    assert isinstance(out, bytes) and out.startswith(b"{")

@@ -131,7 +131,7 @@ L1 receipts include `rule_version`, `tool_call_id`, and `args_digest` bindings t
 
 A two-stage **VERIFIED vs ACCEPTED** trust model separates cryptographic self-consistency (anyone can verify a self-signed receipt) from issuer authentication (the relying party pins a public key or fingerprint before treating a receipt as trusted). The package ships a deterministic, public test-only reference key (`ccs-verifier/reference`, fingerprint `889d3f5bd86f5ff2`) used by the bundled reference-signed vector; deployments MUST generate and pin their own key.
 
-**157 tests passing** — L1 receipt, trust model, MCP scanner, built-in rules, integration, and a reference-signed canonical vector reproducible from source.
+**167 tests passing** — L1 receipt, trust model, MCP scanner, built-in rules, integration, NaN/Infinity canonicalization rejection, and a reference-signed canonical vector reproducible from source.
 
 ## Dimension-Level Error Codes
 

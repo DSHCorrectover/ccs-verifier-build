@@ -155,7 +155,19 @@ def _validate_safe_integers(value: Any) -> None:
                 f"Use a string or float for values outside this range."
             )
     elif isinstance(value, float):
-        return
+        # Reject NaN and Infinity explicitly. These are not valid JSON numbers
+        # (RFC 8259 §6) and RFC 8785 JCS canonicalization MUST NOT emit them.
+        # The `jcs` library already rejects them, but we fail fast with a
+        # clear error before canonicalization to prevent any future code path
+        # from slipping non-finite floats into a signed preimage via
+        # json.dumps(allow_nan=True) defaults.
+        import math as _math
+        if _math.isnan(value) or _math.isinf(value):
+            raise ValueError(
+                f"Non-finite float {value!r} is not a valid JSON number and "
+                f"cannot be canonicalized for signing (RFC 8785 / RFC 8259). "
+                f"Use None, a string, or a finite number."
+            )
     elif isinstance(value, str):
         return
     elif value is None:

@@ -339,7 +339,7 @@ class TestReferenceVector:
         b.params_hash("refvec001")
         b.args_digest({"command": "echo reference"})
         b.rule_summary("reference_vector")
-        b.rule_version("1.1.14")
+        b.rule_version("1.1.20")
         b.request_hash({"ref": 1})
         b.response_hash({"ok": True})
         b.runtime_context({"dist": "reference"})
